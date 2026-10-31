@@ -6,8 +6,13 @@ type SketchPanelProps = {
   isAnalyzing: boolean;
   analysisSuccess: string | null;
   error: string | null;
+  previewError: string | null;
+  sceneSource: "live" | "demo";
   onSelectFile: (file: File) => void;
+  onPreviewError: (url: string) => void;
   onAnalyze: () => void;
+  onRetry: () => void;
+  onUseDemo: () => void;
   onSelectPreset?: (url: string, name: string) => void;
 };
 
@@ -17,8 +22,13 @@ export function SketchPanel({
   isAnalyzing,
   analysisSuccess,
   error,
+  previewError,
+  sceneSource,
   onSelectFile,
+  onPreviewError,
   onAnalyze,
+  onRetry,
+  onUseDemo,
   onSelectPreset,
 }: SketchPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -35,11 +45,12 @@ export function SketchPanel({
       });
       streamRef.current = stream;
       setCameraActive(true);
-    } catch (err: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       setCameraError(
-        err.name === "NotAllowedError"
+        error instanceof DOMException && error.name === "NotAllowedError"
           ? "Camera permission denied. Upload a sketch file or choose a preset."
-          : "Camera not available on this device: " + (err.message || String(err))
+          : `Camera not available on this device: ${message}`,
       );
     }
   };
@@ -58,7 +69,7 @@ export function SketchPanel({
       videoRef.current.play().catch(() => {});
     }
     return () => {
-      if (!cameraActive && streamRef.current) {
+      if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
@@ -101,7 +112,7 @@ export function SketchPanel({
         ref={inputRef}
         className="sr-only"
         type="file"
-        accept="image/png,image/jpeg,image/webp"
+        accept="image/png,image/jpeg"
         onChange={(event) => {
           const file = event.target.files?.[0];
           if (file) {
@@ -116,16 +127,16 @@ export function SketchPanel({
           <div className="camera-viewfinder">
             <video ref={videoRef} autoPlay playsInline muted className="camera-video" />
             <div className="camera-overlay">
-              <button type="button" className="button button--primary button--sm" onClick={capturePhoto}>
-                📸 Snap photo
-              </button>
-              <button type="button" className="button button--ghost button--sm" onClick={stopCamera}>
-                Cancel
-              </button>
+              <button type="button" className="button button--primary button--sm" onClick={capturePhoto}>📸 Snap photo</button>
+              <button type="button" className="button button--ghost button--sm" onClick={stopCamera}>Cancel</button>
             </div>
           </div>
         ) : previewUrl ? (
-          <img src={previewUrl} alt="Preview of your uploaded physics sketch" />
+          <img src={previewUrl} alt="Preview of your uploaded physics sketch" onError={() => onPreviewError(previewUrl)} />
+        ) : previewError ? (
+          <div className="empty-sketch" role="status">
+            <span>{previewError}</span>
+          </div>
         ) : (
           <div className="empty-sketch" aria-hidden="true">
             <svg viewBox="0 0 160 104" role="img">
@@ -140,17 +151,26 @@ export function SketchPanel({
       </div>
 
       <p className="upload-name" aria-live="polite">
-        {isAnalyzing ? "⚡ Gemini 4 Argon analyzing sketch..." : fileName ?? "PNG or JPEG · up to 5 MB"}
+        {isAnalyzing ? "Analyzing sketch…" : fileName ?? "PNG or JPEG · up to 5 MB"}
       </p>
-
-      {analysisSuccess && (
+      {analysisSuccess ? (
         <div className="sketch-success-badge" role="status">
           <span className="success-icon">✓</span>
           <span>{analysisSuccess}</span>
         </div>
-      )}
-
-      {error ? <p className="inline-error" role="alert">{error}</p> : null}
+      ) : null}
+      {error ? (
+        <div className="inline-error" role="alert">
+          <p>{error}</p>
+          <div className="stacked-actions">
+            <button className="button button--secondary" type="button" disabled={isAnalyzing} onClick={onRetry}>Retry analysis</button>
+            <button className="button button--ghost" type="button" disabled={isAnalyzing} onClick={onUseDemo}>Use demo scene</button>
+          </div>
+        </div>
+      ) : null}
+      <p className="scene-provenance" aria-live="polite">
+        {sceneSource === "live" ? "Live Gemini analysis applied to this experiment." : "Demo scene active — this experiment was not generated from your uploaded sketch."}
+      </p>
       {cameraError ? <p className="inline-error" role="alert">{cameraError}</p> : null}
 
       <div className="stacked-actions">

@@ -75,6 +75,8 @@ export type TrajectoryPoint = {
 };
 
 export type VerificationVerdict = {
+  /** Only a backend result is independently verified; absent provenance is unverified. */
+  source?: "backend" | "mock";
   status: "match" | "mismatch" | "not_applicable";
   expectedSeconds: number;
   measuredSeconds: number;

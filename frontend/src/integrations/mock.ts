@@ -15,14 +15,16 @@ export const createDemoScene = (): InclineSceneSpec => ({
   assumptions: ["Rolling without slipping", "No air resistance"],
 });
 
-/**
- * Scene Analysis:
- * Calls Nikolai's FastAPI backend endpoint `POST /api/v1/scenes/analyze`
- * with Gemini 4 Argon image recognition.
- */
-export async function analyzeSketch(file: File | Blob): Promise<InclineSceneSpec> {
-  const formData = new FormData();
-  formData.append("image", file, "sketch.png");
+export type AnalysisResult = {
+  scene: InclineSceneSpec;
+  source: "live";
+};
+
+/** Calls the validated FastAPI analysis endpoint. Demo use is an explicit UI action. */
+export async function analyzeSketch(file: File): Promise<AnalysisResult> {
+  if (file.type !== "image/png" && file.type !== "image/jpeg") {
+    throw new Error("Upload a PNG or JPEG image of your physics sketch.");
+  }
 
   // Prefer relative /api proxy (same-origin, zero CORS issues in all browsers),
   // fallback to direct backend port 8000.
@@ -31,64 +33,46 @@ export async function analyzeSketch(file: File | Blob): Promise<InclineSceneSpec
 
   for (const url of urls) {
     try {
+      const formData = new FormData();
+      formData.append("image", file);
       const response = await fetch(url, {
         method: "POST",
         body: formData,
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.scene && data.scene.scenario === "incline") {
-          return {
-            scenario: "incline",
-            body: data.scene.body === "block" ? "block" : "ball",
-            mass: Number(data.scene.mass ?? 1.0),
-            angle_deg: Number(data.scene.angle_deg ?? 30),
-            length: Math.max(1.0, Math.min(10.0, Number(data.scene.length ?? 4.0))),
-            friction: data.scene.friction !== undefined ? Number(data.scene.friction) : 0.0,
-            gravity: Number(data.scene.gravity ?? 9.81),
-            confidence: Number(data.scene.confidence ?? 0.95),
-            assumptions: data.scene.assumptions || ["Parsed via Gemini 4 Argon"],
-          };
-        } else if (data?.scene) {
-          // In case scenario is projectile or pendulum or other
-          return {
-            scenario: "incline",
-            body: (data.scene.body as any) || "block",
-            mass: Number(data.scene.mass ?? 1.0),
-            angle_deg: Number(data.scene.angle_deg ?? 30),
-            length: 4.0,
-            friction: 0.0,
-            gravity: 9.81,
-            confidence: Number(data.scene.confidence ?? 0.8),
-            assumptions: data.scene.assumptions || [],
-          };
-        }
-      } else {
-        const errJson = await response.json().catch(() => null);
-        if (errJson?.message) {
-          // If a tiny mock buffer is passed in unit test, fall back to mock demo scene
-          if (errJson.code === "invalid_image" && file.size < 100) {
-            return createDemoScene();
-          }
-          throw new Error(errJson.message);
-        }
+      const data = await response.json().catch(() => null) as { message?: unknown; scene?: unknown } | null;
+      if (!response.ok) {
+        const message = typeof data?.message === "string" ? data.message : "Could not analyze this sketch.";
+        lastError = new Error(message);
+        continue;
       }
-    } catch (err: any) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      // Continue to next URL fallback
+
+      if (!isInclineScene(data?.scene)) {
+        lastError = new Error("The analysis did not return a supported inclined-plane scene.");
+        continue;
+      }
+
+      return { scene: data.scene, source: "live" };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
     }
   }
 
-  // If backend was reached with a specific error message, report it
-  if (lastError && !lastError.message.toLowerCase().includes("failed") && !lastError.message.toLowerCase().includes("network")) {
-    throw lastError;
-  }
+  const message = lastError?.message ?? "Could not reach the analysis service.";
+  throw new Error(`${message} Try again, or choose the demo scene.`);
+}
 
-  // Fallback demo scene only if backend is completely unavailable
-  console.warn("Backend /api/v1/scenes/analyze unreachable; falling back to demo scene:", lastError);
-  await wait(400);
-  return createDemoScene();
+function isInclineScene(scene: unknown): scene is InclineSceneSpec {
+  if (!scene || typeof scene !== "object") return false;
+  const candidate = scene as Partial<InclineSceneSpec>;
+  return candidate.scenario === "incline" &&
+    (candidate.body === "ball" || candidate.body === "block") &&
+    typeof candidate.mass === "number" &&
+    typeof candidate.angle_deg === "number" &&
+    typeof candidate.length === "number" &&
+    typeof candidate.friction === "number" &&
+    typeof candidate.gravity === "number" &&
+    typeof candidate.confidence === "number" &&
+    Array.isArray(candidate.assumptions);
 }
 
 /**
@@ -107,6 +91,7 @@ export async function verifySimulation(scene: InclineSceneSpec): Promise<Verific
   const errorPct = Math.abs((measuredSeconds - expectedSeconds) / expectedSeconds) * 100;
 
   return {
+    source: "mock",
     status: errorPct <= 2 ? "match" : "mismatch",
     expectedSeconds,
     measuredSeconds,
