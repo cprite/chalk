@@ -5,7 +5,7 @@ import math
 from typing import Any, Mapping
 
 from .scene import SceneAdapter
-from .solver import Unsupported, incline
+from .solver import Unsupported, incline, solve
 
 
 def verify(scene: Any, measured: Mapping[str, Any] | Any) -> dict[str, Any]:
@@ -42,7 +42,7 @@ def verify(scene: Any, measured: Mapping[str, Any] | Any) -> dict[str, Any]:
     measured_dict = {"moved": moved, "time_to_end_s": time_to_end_s}
 
     try:
-        expected = incline(scene)
+        expected = solve(scene)
     except Unsupported:
         return {
             "verdict": "not_applicable",

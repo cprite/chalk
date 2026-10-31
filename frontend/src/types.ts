@@ -48,6 +48,20 @@ export type Collision1DSceneSpec = {
   assumptions: string[];
 };
 
+export type SpringSceneSpec = {
+  scenario: "spring";
+  mass: number;
+  spring_constant: number;
+  spring_count: number;
+  arrangement: "series" | "parallel" | "single";
+  amplitude: number;
+  k1?: number;
+  k2?: number;
+  gravity: number;
+  confidence: number;
+  assumptions: string[];
+};
+
 export type CloudChamberSceneSpec = {
   scenario: "cloud_chamber";
   alphaEnergyMeV: number;
@@ -62,6 +76,7 @@ export type CloudChamberSceneSpec = {
 
 export type SceneSpec =
   | InclineSceneSpec
+  | SpringSceneSpec
   | ProjectileSceneSpec
   | PendulumSceneSpec
   | Collision1DSceneSpec

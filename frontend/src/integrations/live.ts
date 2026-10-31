@@ -1,11 +1,11 @@
-import type { InclineSceneSpec, VoiceState } from "../types";
+import type { InclineSceneSpec, SceneSpec, SpringSceneSpec, VoiceState } from "../types";
 
 const wait = (milliseconds: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 export type VoiceTurnResult = {
   text: string;
-  updatedScene?: Partial<InclineSceneSpec>;
+  updatedScene?: Partial<SceneSpec>;
   shouldPlay?: boolean;
 };
 
@@ -16,14 +16,14 @@ export type VoiceTurnResult = {
  */
 export function parseVoiceIntent(
   prompt: string,
-  scene?: InclineSceneSpec
+  scene?: SceneSpec
 ): {
   explanation: string;
-  updates: Partial<InclineSceneSpec>;
+  updates: Partial<SceneSpec>;
   shouldPlay?: boolean;
 } {
   const p = prompt.toLowerCase().trim();
-  const baseScene: InclineSceneSpec = scene ?? {
+  const baseScene: SceneSpec = scene ?? {
     scenario: "incline",
     body: "ball",
     mass: 1,
@@ -35,6 +35,42 @@ export function parseVoiceIntent(
     assumptions: [],
   };
 
+  const isSpring = baseScene.scenario === "spring";
+  const springScene = isSpring ? (baseScene as SpringSceneSpec) : null;
+  const inclineScene = !isSpring ? (baseScene as InclineSceneSpec) : null;
+
+  // Spring system voice commands
+  if (p.includes("series") || p.includes("end to end")) {
+    return {
+      explanation:
+        "Configured springs in series! Effective stiffness is now lower: 1/k_eff = Σ 1/k_i, causing a longer oscillation period T.",
+      updates: { arrangement: "series" } as any,
+    };
+  }
+  if (p.includes("parallel") || p.includes("side by side")) {
+    return {
+      explanation:
+        "Configured springs in parallel! Effective stiffness is now higher: k_eff = Σ k_i, causing a faster oscillation.",
+      updates: { arrangement: "parallel" } as any,
+    };
+  }
+  if (p.includes("add") && p.includes("spring")) {
+    const cur = springScene?.spring_count ?? 2;
+    const next = Math.min(5, cur + 1);
+    return {
+      explanation: `Generatively added another spring to the apparatus! Total springs: ${next}.`,
+      updates: { spring_count: next } as any,
+    };
+  }
+  if (p.includes("stiff") || (p.includes("spring") && p.includes("double"))) {
+    const curK = springScene?.spring_constant ?? 120;
+    const nextK = curK * 2;
+    return {
+      explanation: `Doubled spring constant to ${nextK.toFixed(0)} N/m. Under SHM T = 2π√(m/k), doubling k reduces the period by √2.`,
+      updates: { spring_constant: nextK } as any,
+    };
+  }
+
   // 1. Double mass ("double the mass", "make it twice as heavy", "double ball weight")
   if (
     p.includes("double") &&
@@ -42,7 +78,9 @@ export function parseVoiceIntent(
   ) {
     const newMass = Number((baseScene.mass * 2).toFixed(1));
     return {
-      explanation: `Doubled the mass from ${baseScene.mass} kg to ${newMass} kg. In ideal rolling without slipping, acceleration a = (5/7) g sin(θ) is independent of mass, so the arrival time remains identical!`,
+      explanation: isSpring
+        ? `Doubled mass to ${newMass} kg. Under T = 2π√(m/k), heavier bob oscillates √2 times slower!`
+        : `Doubled the mass from ${baseScene.mass} kg to ${newMass} kg. In ideal rolling without slipping, acceleration a = (5/7) g sin(θ) is independent of mass!`,
       updates: { mass: newMass },
     };
   }
@@ -51,7 +89,7 @@ export function parseVoiceIntent(
   if (p.includes("triple") && (p.includes("mass") || p.includes("weight"))) {
     const newMass = Number((baseScene.mass * 3).toFixed(1));
     return {
-      explanation: `Tripled the mass from ${baseScene.mass} kg to ${newMass} kg. The 3D model is now noticeably heavier, but rolling acceleration remains constant.`,
+      explanation: `Tripled the mass from ${baseScene.mass} kg to ${newMass} kg. Noticeably heavier bob/block.`,
       updates: { mass: newMass },
     };
   }
@@ -70,10 +108,11 @@ export function parseVoiceIntent(
     p.includes("steeper") ||
     (p.includes("increase") && (p.includes("angle") || p.includes("ramp") || p.includes("slope")))
   ) {
-    const newAngle = Math.min(65, baseScene.angle_deg + 15);
+    const curAngle = inclineScene?.angle_deg ?? 30;
+    const newAngle = Math.min(75, curAngle + 15);
     return {
-      explanation: `A steeper ramp increases the component of gravity along the plane, so the ${baseScene.body} accelerates more quickly. Set angle from ${baseScene.angle_deg}° to ${newAngle}°.`,
-      updates: { angle_deg: newAngle },
+      explanation: `A steeper ramp increases the component of gravity along the plane. Set angle from ${curAngle}° to ${newAngle}°.`,
+      updates: { angle_deg: newAngle } as any,
     };
   }
 

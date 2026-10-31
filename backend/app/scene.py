@@ -43,8 +43,19 @@ class Collision1DScene(CommonBase):
     restitution: float = Field(ge=0.0, le=1.0)
 
 
+class SpringScene(CommonBase):
+    scenario: Literal["spring"] = "spring"
+    mass: float = Field(gt=0.0, le=1000.0)
+    spring_constant: float = Field(gt=0.0, le=50000.0)
+    spring_count: int = Field(default=1, ge=1, le=10)
+    arrangement: Literal["series", "parallel", "single"] = "series"
+    amplitude: float = Field(default=0.35, gt=0.0, le=5.0)
+    k1: float = Field(default=0.0, ge=0.0, le=50000.0)
+    k2: float = Field(default=0.0, ge=0.0, le=50000.0)
+
+
 SceneSpec = Annotated[
-    Union[InclineScene, ProjectileScene, PendulumScene, Collision1DScene],
+    Union[InclineScene, ProjectileScene, PendulumScene, Collision1DScene, SpringScene],
     Field(discriminator="scenario"),
 ]
 

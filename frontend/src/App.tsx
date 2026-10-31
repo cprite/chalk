@@ -10,7 +10,7 @@ import { executeVoiceTurn } from "./integrations/live";
 import { dismissPresentationOverlay } from "./presentation";
 import { getSketchImageValidationError } from "./sketchFile";
 import type { PresentationOverlay } from "./presentation";
-import type { InclineSceneSpec, VerificationVerdict, VoiceState } from "./types";
+import type { InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict, VoiceState } from "./types";
 
 const initialScene = createDemoScene();
 
@@ -21,7 +21,7 @@ type VoiceMessage = {
 
 export default function App() {
   const presentationRootRef = useRef<HTMLElement>(null);
-  const [scene, setScene] = useState<InclineSceneSpec>(initialScene);
+  const [scene, setScene] = useState<SceneSpec>(initialScene);
   const [sceneSource, setSceneSource] = useState<"live" | "demo">("demo");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const previewUrlRef = useRef<string | null>(null);
@@ -83,9 +83,16 @@ export default function App() {
       setScene(analysis.scene);
       setSceneSource(analysis.source);
       setVerdict(null);
-      setAnalysisSuccess(
-        `Live analysis: ${analysis.scene.angle_deg}° slope · ${analysis.scene.mass} kg ${analysis.scene.body}`,
-      );
+      if (analysis.scene.scenario === "spring") {
+        setAnalysisSuccess(
+          `Live analysis: ${analysis.scene.spring_count} springs in ${analysis.scene.arrangement} · ${analysis.scene.mass} kg (k_eff = ${analysis.scene.spring_constant.toFixed(0)} N/m)`
+        );
+      } else {
+        const inc = analysis.scene as InclineSceneSpec;
+        setAnalysisSuccess(
+          `Live analysis: ${inc.angle_deg}° slope · ${inc.mass} kg ${inc.body}`
+        );
+      }
     } catch (error) {
       setInputError(error instanceof Error ? error.message : "We could not read that sketch. Please try again.");
     } finally {
@@ -218,14 +225,16 @@ export default function App() {
     setIsPresentationMode(false);
   };
 
-  const changeScene = (field: "angle_deg" | "mass" | "gravity", value: number) => {
-    setScene((current) => ({ ...current, [field]: value }));
+  const changeScene = (field: string, value: any) => {
+    setScene((current) => ({ ...current, [field]: value } as SceneSpec));
     setVerdict(null);
   };
 
   const changeBody = (body: "ball" | "block") => {
-    setScene((current) => ({ ...current, body }));
-    setVerdict(null);
+    if (scene.scenario === "incline") {
+      setScene((current) => ({ ...current, body } as SceneSpec));
+      setVerdict(null);
+    }
   };
 
   const resetScene = () => {
@@ -302,7 +311,12 @@ export default function App() {
 
         <section className="simulation-panel" aria-labelledby="simulation-title">
           <div className="simulation-heading">
-            <div><p className="eyebrow">02 / EXPERIMENT</p><h2 id="simulation-title">Inclined plane</h2></div>
+            <div>
+              <p className="eyebrow">02 / EXPERIMENT</p>
+              <h2 id="simulation-title">
+                {scene.scenario === "spring" ? "Vertical spring oscillator" : "Inclined plane"}
+              </h2>
+            </div>
             <div className="simulation-actions">
               <span className="live-chip"><i /> {isPlaying ? "Running" : "Ready"}</span>
               <button

@@ -198,6 +198,13 @@ export function SketchPanel({
             <button
               type="button"
               className="preset-pill-btn"
+              onClick={() => onSelectPreset("/drawings/spring_series_5kg.png", "spring_series_5kg.png")}
+            >
+              🌀 2 Springs Series (k₁=200, k₂=300, 5 kg)
+            </button>
+            <button
+              type="button"
+              className="preset-pill-btn"
               onClick={() => onSelectPreset("/drawings/user_sketch_60deg_20kg.png", "user_sketch_60deg_20kg.png")}
             >
               📐 60° · 20 kg Block

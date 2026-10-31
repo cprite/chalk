@@ -80,8 +80,40 @@ def incline(scene: Any) -> Expected:
         raise Unsupported(f"Body type '{body}' is not supported")
 
 
+def spring(scene: Any) -> Expected:
+    """
+    Analytic solver for a vertical simple harmonic oscillator / spring system.
+    T = 2 * pi * sqrt(m / k_eff)
+    """
+    if getattr(scene, "scenario", None) != "spring":
+        raise Unsupported(f"Scenario '{getattr(scene, 'scenario', None)}' is unsupported")
+
+    m = float(scene.mass)
+    k = float(scene.spring_constant)
+    if k <= 0 or m <= 0:
+        raise Unsupported("Mass and spring constant must be strictly positive")
+
+    omega = math.sqrt(k / m)
+    T = 2.0 * math.pi / omega
+    freq = 1.0 / T
+    static_ext = (m * scene.gravity) / k
+    A = getattr(scene, "amplitude", 0.35)
+    a_max = omega * omega * A
+
+    return Expected(
+        moves=True,
+        acceleration=a_max,
+        time_to_end_s=T,
+        regime="simple_harmonic_motion",
+        formula=f"T = 2*pi*sqrt(m/k) = {T:.3f}s; f = {freq:.2f}Hz; delta_x = {static_ext:.3f}m; a_max = {a_max:.2f}m/s^2",
+    )
+
+
 def solve(scene: Any) -> Expected:
     """General solver dispatch."""
-    if getattr(scene, "scenario", None) == "incline":
+    scen = getattr(scene, "scenario", None)
+    if scen == "incline":
         return incline(scene)
-    raise Unsupported(f"Scenario '{getattr(scene, 'scenario', None)}' is unsupported")
+    if scen == "spring":
+        return spring(scene)
+    raise Unsupported(f"Scenario '{scen}' is unsupported")

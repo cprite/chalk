@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { dismissPresentationOverlay, togglePresentationOverlay } from "../presentation";
 import type { PresentationOverlay } from "../presentation";
-import type { InclineSceneSpec, VerificationVerdict, VoiceState } from "../types";
+import type { InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict, VoiceState } from "../types";
 import { Controls } from "./Controls";
 import { PhysicsScene } from "./PhysicsScene";
 import { ResultsPanel } from "./ResultsPanel";
@@ -12,7 +12,7 @@ type VoiceMessage = {
 };
 
 type PresentationStageProps = {
-  scene: InclineSceneSpec;
+  scene: SceneSpec;
   isPlaying: boolean;
   isVerifying: boolean;
   verdict: VerificationVerdict | null;
@@ -23,7 +23,7 @@ type PresentationStageProps = {
   voiceHistory: VoiceMessage[];
   overlay: PresentationOverlay;
   onOverlayChange: (overlay: PresentationOverlay) => void;
-  onChangeScene: (field: "angle_deg" | "mass" | "gravity", value: number) => void;
+  onChangeScene: (field: string, value: any) => void;
   onChangeBody: (body: "ball" | "block") => void;
   onTogglePlay: () => void;
   onReset: () => void;
