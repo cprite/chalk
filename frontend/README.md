@@ -55,7 +55,14 @@ No API key, Live token, image, or audio is stored by this frontend. Camera use i
 - Voice: shows `ready → listening → thinking → speaking`; errors remain visible with a retry action.
 - Simulation: reset restores the baseline scene; running it triggers verification.
 - Result: a verdict is never inferred by the voice model — it comes from the verification adapter.
-- Presentation: the Present button keeps the existing scene, controls, voice transcript, and verdict in one projector-friendly layout. It requests browser fullscreen when available and remains usable in a window when it is not; Escape exits either mode.
+- Presentation: the Present button turns the existing experiment into a fullscreen-ready stage without creating a second scene or session. The scene stays dominant; Controls, History, and Results open as dismissible overlays. Play/Pause, Reset, the microphone, and Exit remain visible. Escape closes an open overlay first, then exits the windowed presentation; browser fullscreen changes stay in sync and a rejected Fullscreen API request falls back to the same windowed stage.
+
+### Presentation controls
+
+- **Controls** exposes angle, mass, and gravity without permanently covering the scene.
+- **History** shows completed voice turns from the current session only.
+- **Results** exposes the detailed theory-versus-simulation panel. The stage shows a verification badge only after the verifier has returned a result.
+- **Escape** closes an overlay; with no overlay open it exits windowed Presentation Mode. In browser fullscreen, the browser also exits fullscreen and the app returns to Normal Mode.
 
 ## Roadmap
 
