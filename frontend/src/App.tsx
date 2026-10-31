@@ -14,6 +14,10 @@ import type { InclineSceneSpec, VerificationVerdict, VoiceState } from "./types"
 
 const initialScene = createDemoScene();
 
+// JavaScript's \\b only understands Latin letters, so it cannot end a Russian word.
+export const startsWithWord = (text: string, words: string) =>
+  new RegExp(`^(${words})(?=[\\s,.:!?]|$)`, "i").test(text);
+
 type VoiceMessage = {
   speaker: "You" | "Chalk";
   text: string;
@@ -40,6 +44,7 @@ export default function App() {
   const [presentationOverlay, setPresentationOverlay] = useState<PresentationOverlay>(null);
   const [voiceHistory, setVoiceHistory] = useState<VoiceMessage[]>([]);
   const [prediction, setPrediction] = useState<string | null>(null);
+  const latestTurn = useRef(0);
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -107,12 +112,15 @@ export default function App() {
   };
 
   const runVerification = async (sceneToVerify = scene) => {
+    const turn = ++latestTurn.current;
     setIsVerifying(true);
     try {
       const measured = await measureIncline(sceneToVerify);
       const result = await verifyMeasurement(sceneToVerify, measured);
       setVerdict(result.verdict);
       const text = await explainResult(sceneToVerify, result.raw, prediction);
+      // The user moved on while the model was answering, so this explanation is out of date.
+      if (turn !== latestTurn.current) return;
       setAssistantResponse(text);
       setVoiceHistory((history) => [...history, { speaker: "Chalk", text }]);
       speakAloud(text);
@@ -140,23 +148,30 @@ export default function App() {
     setTranscript(command);
     const text = command.trim();
     if (!text) return;
+    latestTurn.current += 1;
 
     // Instant local controls: no model call, so they work the moment the button would.
-    if (/^(run|start|play|запусти|пуск|старт)\b/i.test(text)) {
+    if (startsWithWord(text, "run|start|play|запусти|пуск|старт")) {
       say(command, "Launching the simulation.");
       setIsPlaying(true);
       void runVerification();
       return;
     }
-    if (/^(pause|stop|halt|пауза|стоп)\b/i.test(text)) {
+    if (startsWithWord(text, "pause|stop|halt|пауза|стоп")) {
       say(command, "Paused the simulation.");
       setIsPlaying(false);
       return;
     }
-    if (/^(i think|i predict|prediction|думаю|я думаю|прогноз)\b/i.test(text)) {
+    if (startsWithWord(text, "i think|i predict|prediction|думаю|я думаю|прогноз")) {
       setPrediction(text);
       say(command, "Prediction recorded. Run the simulation to test it.");
       void recordPrediction(text).catch(() => undefined);
+      return;
+    }
+
+    // Spring assemblies are a visual CAD preview. They have no SceneSpec and no verdict yet.
+    if (/spring|hooke|oscillator|пружин/i.test(text)) {
+      say(command, parseVoiceIntent(text, scene).explanation);
       return;
     }
 

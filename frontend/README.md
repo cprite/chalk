@@ -31,7 +31,7 @@ App (orchestration and session state)
 └── ResultsPanel      theory versus simulation verdict
 
 integrations/
-├── mock.ts           Argon-analysis and verification stand-ins
+├── backend.ts        Client for the FastAPI backend
 └── live.ts           Gemini Live state-transition stand-in
 ```
 
@@ -41,10 +41,10 @@ integrations/
 
 | Owner | Replace | Stable interface / expectation |
 |---|---|---|
-| Argon + API | `integrations/mock.ts → analyzeSketch` | `POST /api/v1/scenes/analyze` returns a validated incline `SceneSpec` |
+| Argon + API | `integrations/backend.ts → analyzeSketch` | `POST /api/v1/scenes/analyze` returns a validated incline `SceneSpec` |
 | Physics | `components/PhysicsScene.tsx` | Receive `scene: InclineSceneSpec`; expose a trajectory to the verifier |
 | Live voice | `integrations/live.ts → completeVoiceTurn` | Report `thinking` and `speaking`; return an assistant utterance; browser receives only a short-lived token |
-| Verification API | `integrations/mock.ts → verifySimulation` | `POST /api/v1/verify` returns theory, measured value, error %, tolerance, and verdict |
+| Verification API | `physics/rapierMeasure.ts` + `integrations/backend.ts → verifyMeasurement` | `POST /api/v1/verify` returns theory, measured value, error %, tolerance, and verdict |
 
 No API key, Live token, image, or audio is stored by this frontend. Camera use is intentionally left as a clear demo-mode fallback until the secure Live token flow is ready.
 
