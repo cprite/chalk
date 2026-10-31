@@ -9,9 +9,9 @@ type ControlsProps = {
 };
 
 const controls = [
-  { field: "angle_deg" as const, label: "Angle", unit: "°", min: 5, max: 60, step: 1 },
-  { field: "mass" as const, label: "Mass", unit: "kg", min: 0.5, max: 5, step: 0.5 },
-  { field: "gravity" as const, label: "Gravity", unit: "m/s²", min: 1, max: 15, step: 0.1 },
+  { field: "angle_deg" as const, label: "Angle", unit: "°", min: 5, max: 80, step: 1 },
+  { field: "mass" as const, label: "Mass", unit: "kg", min: 0.5, max: 100, step: 0.5 },
+  { field: "gravity" as const, label: "Gravity", unit: "m/s²", min: 1, max: 25, step: 0.1 },
 ];
 
 export function Controls({ scene, isPlaying, onChange, onTogglePlay, onReset }: ControlsProps) {

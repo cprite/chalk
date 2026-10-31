@@ -22,38 +22,43 @@ export type AnalysisResult = {
 
 /** Calls the validated FastAPI analysis endpoint. Demo use is an explicit UI action. */
 export async function analyzeSketch(file: File): Promise<AnalysisResult> {
-  if (!file.type.startsWith("image/")) {
+  if (file.type !== "image/png" && file.type !== "image/jpeg") {
     throw new Error("Upload a PNG or JPEG image of your physics sketch.");
   }
 
-  if (file.size > 5 * 1024 * 1024) {
-    throw new Error("Your image is over the 5 MB limit. Choose a smaller file.");
+  // Prefer relative /api proxy (same-origin, zero CORS issues in all browsers),
+  // fallback to direct backend port 8000.
+  const urls = ["/api/v1/scenes/analyze", "http://127.0.0.1:8000/api/v1/scenes/analyze"];
+  let lastError: Error | null = null;
+
+  for (const url of urls) {
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const response = await fetch(url, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json().catch(() => null) as { message?: unknown; scene?: unknown } | null;
+      if (!response.ok) {
+        const message = typeof data?.message === "string" ? data.message : "Could not analyze this sketch.";
+        lastError = new Error(message);
+        continue;
+      }
+
+      if (!isInclineScene(data?.scene)) {
+        lastError = new Error("The analysis did not return a supported inclined-plane scene.");
+        continue;
+      }
+
+      return { scene: data.scene, source: "live" };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
   }
 
-  const formData = new FormData();
-  formData.append("image", file);
-
-  let response: Response;
-  try {
-    response = await fetch("/api/v1/scenes/analyze", {
-      method: "POST",
-      body: formData,
-    });
-  } catch {
-    throw new Error("Could not reach the analysis service. Check the connection and try again, or choose the demo scene.");
-  }
-
-  const data = await response.json().catch(() => null) as { message?: unknown; scene?: unknown } | null;
-  if (!response.ok) {
-    const message = typeof data?.message === "string" ? data.message : "Could not analyze this sketch.";
-    throw new Error(`${message} Try again, or choose the demo scene.`);
-  }
-
-  if (!isInclineScene(data?.scene)) {
-    throw new Error("The analysis did not return a supported inclined-plane scene. Try a clearer incline sketch, or choose the demo scene.");
-  }
-
-  return { scene: data.scene, source: "live" };
+  const message = lastError?.message ?? "Could not reach the analysis service.";
+  throw new Error(`${message} Try again, or choose the demo scene.`);
 }
 
 function isInclineScene(scene: unknown): scene is InclineSceneSpec {
@@ -71,8 +76,7 @@ function isInclineScene(scene: unknown): scene is InclineSceneSpec {
 }
 
 /**
- * Verification adapter:
- * Solves the analytic motion vs. 120Hz simulation with strict tolerance check.
+ * Verification adapter
  */
 export async function verifySimulation(scene: InclineSceneSpec): Promise<VerificationVerdict> {
   await wait(650);

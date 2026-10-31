@@ -36,3 +36,96 @@ h1, h2, p { margin-top: 0; }.intro h1 { max-width: 620px; margin-bottom: 15px; f
 /* Keep the stage surface clear: voice feedback belongs in the dock, not over the experiment. */
 .presentation-title .presentation-verification { position: static; padding: 5px 7px; border: 1px solid #cbd8c6; background: #edf3e9; color: #375b45; }.presentation-footer { min-height: 72px; align-items: end; }.presentation-voice-dock { position: absolute; bottom: 0; left: 50%; display: flex; align-items: center; gap: 10px; width: min(720px, calc(100% - 280px)); transform: translateX(-50%); }.presentation-voice-dock .presentation-caption { position: static; width: auto; flex: 1; transform: none; padding: 0; border: 0; background: transparent; color: #27473a; text-align: left; box-shadow: none; }.presentation-voice-dock .presentation-caption > span { margin-bottom: 3px; }.presentation-voice-dock .presentation-caption > p { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.presentation-voice-dock .presentation-error { position: static; width: auto; transform: none; margin-top: 5px; padding: 5px 8px; text-align: left; }.presentation-voice-dock .presentation-error p { display: inline; margin: 0 6px 0 0; }.presentation-scene .presentation-verification, .presentation-scene .presentation-caption, .presentation-scene .presentation-error { display: none; }
 @media (max-width: 720px) { .presentation-title .presentation-verification { display: none; }.presentation-footer { min-height: 64px; }.presentation-voice-dock { width: calc(100% - 130px); gap: 7px; }.presentation-voice-dock .presentation-caption > p { font-size: .72rem; }.presentation-voice-dock .presentation-error { font-size: .66rem; }.presentation-mic { flex: 0 0 auto; } }
+@media (max-width: 1050px) { .lab-grid { grid-template-columns: minmax(220px, .8fr) minmax(380px, 1.4fr); }.voice-panel { grid-column: 1 / -1; min-height: unset; }.transcript { min-height: 150px; }.results-panel { grid-template-columns: 1.25fr .9fr 1.25fr; }.verdict { grid-column: 1 / -1; } }
+@media (max-width: 720px) { .app-shell { width: min(100% - 28px, 540px); padding-top: 15px; }.topbar { grid-template-columns: 1fr auto; }.tagline { display: none; }.intro { padding: 40px 0 25px; }.intro h1 { letter-spacing: -2px; }.lab-grid { grid-template-columns: 1fr; }.simulation-panel { min-height: 500px; }.sketch-panel, .voice-panel { min-height: unset; }.results-panel { grid-template-columns: 1fr; gap: 19px; padding: 22px; }.formula { border-left: 0; border-top: 2px solid #c8795b; }.verdict { grid-column: auto; }.scene-stage { min-height: 265px; }.rolling-body--moving { transform: translate(118px, 72px) rotate(360deg); } }
+
+/* Sketch Panel Enhancements: Presets, Badges, Camera */
+.sketch-presets-block {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed #d8d4c7;
+}
+.presets-heading {
+  margin: 0 0 8px;
+  color: #6a7b70;
+  font: 500 0.68rem/1 "DM Mono", monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.preset-pill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.preset-pill-btn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #c9d5c6;
+  border-radius: 3px;
+  background: #f4f6ee;
+  color: #24493a;
+  font: 600 0.72rem/1.2 "Manrope", sans-serif;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+.preset-pill-btn:hover {
+  background: #e5eee0;
+  border-color: #9ab495;
+  transform: translateX(2px);
+}
+.sketch-success-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 12px;
+  padding: 8px 10px;
+  border: 1px solid #94b986;
+  border-radius: 2px;
+  background: #eaf4e5;
+  color: #1e4d29;
+  font: 600 0.73rem/1.3 "Manrope", sans-serif;
+  animation: fadeIn 0.25s ease-out;
+}
+.sketch-success-badge .success-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #478440;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.camera-viewfinder {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+.camera-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camera-overlay {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.button--sm {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 0.7rem;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

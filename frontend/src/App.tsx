@@ -28,6 +28,7 @@ export default function App() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisSuccess, setAnalysisSuccess] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verdict, setVerdict] = useState<VerificationVerdict | null>(null);
@@ -73,9 +74,29 @@ export default function App() {
     return () => window.removeEventListener("keydown", exitWindowedPresentation);
   }, [isFullscreen, isPresentationMode, presentationOverlay]);
 
+  const analyzeWithFile = async (targetFile: File) => {
+    setIsAnalyzing(true);
+    setInputError(null);
+    setAnalysisSuccess(null);
+    try {
+      const analysis = await analyzeSketch(targetFile);
+      setScene(analysis.scene);
+      setSceneSource(analysis.source);
+      setVerdict(null);
+      setAnalysisSuccess(
+        `Live analysis: ${analysis.scene.angle_deg}° slope · ${analysis.scene.mass} kg ${analysis.scene.body}`,
+      );
+    } catch (error) {
+      setInputError(error instanceof Error ? error.message : "We could not read that sketch. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const selectFile = (selected: File) => {
     setInputError(null);
     setPreviewError(null);
+    setAnalysisSuccess(null);
     const validationError = getSketchImageValidationError(selected);
     if (validationError) {
       setInputError(validationError);
@@ -87,6 +108,7 @@ export default function App() {
     previewUrlRef.current = nextPreviewUrl;
     setFile(selected);
     setPreviewUrl(nextPreviewUrl);
+    void analyzeWithFile(selected);
   };
 
   const handlePreviewError = (failedUrl: string) => {
@@ -98,20 +120,28 @@ export default function App() {
     setPreviewError("We could not display that image. Choose a different PNG or JPEG sketch.");
   };
 
+  const selectPreset = async (url: string, name: string) => {
+    try {
+      setInputError(null);
+      setPreviewError(null);
+      setAnalysisSuccess(null);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+      setPreviewUrl(url);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Preset request failed (${response.status}).`);
+      const blob = await response.blob();
+      const presetFile = new File([blob], name, { type: "image/png" });
+      setFile(presetFile);
+      await analyzeWithFile(presetFile);
+    } catch (error) {
+      setInputError(`Could not load preset sketch: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   const analyze = async () => {
     if (!file) return;
-    setIsAnalyzing(true);
-    setInputError(null);
-    try {
-      const analysis = await analyzeSketch(file);
-      setScene(analysis.scene);
-      setSceneSource(analysis.source);
-      setVerdict(null);
-    } catch (error) {
-      setInputError(error instanceof Error ? error.message : "We could not read that sketch. Please try again.");
-    } finally {
-      setIsAnalyzing(false);
-    }
+    await analyzeWithFile(file);
   };
 
   const runVerification = async (sceneToVerify = scene) => {
@@ -203,6 +233,7 @@ export default function App() {
     setSceneSource("demo");
     setIsPlaying(false);
     setVerdict(null);
+    setAnalysisSuccess(null);
   };
 
   const useDemoScene = () => {
@@ -210,6 +241,7 @@ export default function App() {
     setSceneSource("demo");
     setVerdict(null);
     setInputError(null);
+    setAnalysisSuccess(null);
   };
 
   return (
@@ -256,6 +288,7 @@ export default function App() {
           previewUrl={previewUrl}
           fileName={file?.name ?? null}
           isAnalyzing={isAnalyzing}
+          analysisSuccess={analysisSuccess}
           error={inputError}
           previewError={previewError}
           sceneSource={sceneSource}
@@ -264,7 +297,7 @@ export default function App() {
           onAnalyze={() => void analyze()}
           onRetry={() => void analyze()}
           onUseDemo={useDemoScene}
-          onCameraRequest={() => setInputError("Camera access will connect to Gemini Live. Upload a photo for this demo mode.")}
+          onSelectPreset={selectPreset}
         />
 
         <section className="simulation-panel" aria-labelledby="simulation-title">

@@ -150,19 +150,19 @@ def _parse_model_output(response: Any) -> SceneSpec:
     return _convert_flat_to_scene(flat)
 
 
-def _generate(contents: Any, client: Any) -> SceneSpec:
+def call_model(contents: Any, system_prompt: str, schema: Any, client: Any = None) -> Any:
     from google import genai
     from google.genai import types
 
     client = client or genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
     config = types.GenerateContentConfig(
-        system_instruction=SYSTEM_PROMPT,
+        system_instruction=system_prompt,
         response_mime_type="application/json",
-        response_schema=FlatSchema,
+        response_schema=schema,
     )
     payload = contents(types) if callable(contents) else contents
     try:
-        response = client.models.generate_content(
+        return client.models.generate_content(
             model=os.getenv("GEMINI_REASONING_MODEL", "gemini-4-argon"),
             contents=payload,
             config=config,
@@ -170,7 +170,10 @@ def _generate(contents: Any, client: Any) -> SceneSpec:
     except Exception as e:
         logger.warning("reasoning model call failed: %s", type(e).__name__)
         raise AnalysisError("model_unavailable", "The reasoning model is unavailable") from e
-    return _parse_model_output(response)
+
+
+def _generate(contents: Any, client: Any) -> SceneSpec:
+    return _parse_model_output(call_model(contents, SYSTEM_PROMPT, FlatSchema, client))
 
 
 def analyze_image(image_bytes: bytes, mime_type: str = "image/jpeg", client: Any = None) -> SceneSpec:

@@ -31,6 +31,29 @@ describe("mock integration adapters", () => {
     }
   });
 
+  it("uses the direct backend only as a live-analysis retry", async () => {
+    const originalFetch = globalThis.fetch;
+    const requestedUrls: string[] = [];
+    globalThis.fetch = async (input) => {
+      requestedUrls.push(String(input));
+      return requestedUrls.length === 1
+        ? new Response(JSON.stringify({ message: "Proxy unavailable." }), { status: 503 })
+        : new Response(JSON.stringify({ scene: createDemoScene() }), { status: 200 });
+    };
+
+    try {
+      const result = await analyzeSketch(new File(["sketch"], "ramp.png", { type: "image/png" }));
+
+      expect(result.source).toBe("live");
+      expect(requestedUrls).toEqual([
+        "/api/v1/scenes/analyze",
+        "http://127.0.0.1:8000/api/v1/scenes/analyze",
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("reports a close theory-versus-simulation match for the demo scene", async () => {
     const verdict = await verifySimulation(createDemoScene());
 
