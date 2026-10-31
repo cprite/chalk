@@ -11,6 +11,17 @@ export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps)
   const isSpring = scene.scenario === "spring";
   const springScene = isSpring ? (scene as SpringSceneSpec) : null;
   const inclineScene = !isSpring ? (scene as InclineSceneSpec) : null;
+  const isStatic = verdict?.status === "match" && verdict.expectedSeconds === 0;
+  const seconds = (value: number | undefined) => (verdict && value ? `${value.toFixed(2)} s` : isStatic ? "At rest" : "—");
+  const heading = isVerifying
+    ? "Checking result"
+    : status === "match"
+    ? "Verified match"
+    : status === "mismatch"
+    ? "Mismatch: do not trust this run"
+    : verdict
+    ? "Could not check"
+    : "Run the experiment";
 
   return (
     <section className="results-panel" aria-labelledby="results-title">
@@ -49,33 +60,33 @@ export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps)
       <dl className="result-values">
         <div>
           <dt>{isSpring ? "Theory Period" : "Theory Time"}</dt>
-          <dd>{verdict ? `${verdict.expectedSeconds.toFixed(2)} s` : "—"}</dd>
+          <dd>{seconds(verdict?.expectedSeconds)}</dd>
         </div>
         <div>
           <dt>{isSpring ? "Sim Period" : "Sim Time"}</dt>
-          <dd>{verdict ? `${verdict.measuredSeconds.toFixed(2)} s` : "—"}</dd>
+          <dd>{seconds(verdict?.measuredSeconds)}</dd>
         </div>
         <div>
           <dt>Difference</dt>
-          <dd>{verdict ? `${verdict.errorPct.toFixed(1)}%` : "—"}</dd>
+          <dd>{verdict && verdict.status !== "not_applicable" ? `${verdict.errorPct.toFixed(1)}%` : "—"}</dd>
         </div>
       </dl>
 
       <div className={`verdict verdict--${status}`} aria-live="polite">
-        <span aria-hidden="true">{isVerifying ? "…" : status === "match" ? "✓" : "○"}</span>
+        <span aria-hidden="true">{isVerifying ? "…" : status === "match" ? "✓" : status === "mismatch" ? "✕" : "○"}</span>
         <div>
           <strong>
-            {isVerifying
-              ? "Checking result"
-              : status === "match"
-              ? "Verified match"
-              : "Run the experiment"}
+            {heading}
           </strong>
           <p>
             {isVerifying
-              ? "Comparing 120Hz Verlet simulation against analytical equation."
-              : verdict
+              ? "Measuring in the Rapier physics engine and comparing with the formula."
+              : verdict?.status === "match"
               ? `Within the ${verdict.tolerancePct}% tolerance.`
+              : verdict?.status === "mismatch"
+              ? `Outside the ${verdict.tolerancePct}% tolerance.`
+              : verdict
+              ? verdict.explanation ?? "The check did not run."
               : isSpring
               ? "Set the spring assembly in motion to compare period with theory."
               : `Set the body in motion to compare both results.`}

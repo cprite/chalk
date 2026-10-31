@@ -1,7 +1,5 @@
+import type { Measurement } from "../physics/rapierMeasure";
 import type { InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict } from "../types";
-
-const wait = (milliseconds: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 export const createDemoScene = (): InclineSceneSpec => ({
   scenario: "incline",
@@ -9,7 +7,8 @@ export const createDemoScene = (): InclineSceneSpec => ({
   mass: 1,
   angle_deg: 30,
   length: 4,
-  friction: 0.12,
+  // High enough to roll without slipping, which needs at least (2/7)·tan(θ) = 0.165 here.
+  friction: 0.5,
   gravity: 9.81,
   confidence: 0.94,
   assumptions: ["Rolling without slipping", "No air resistance"],
@@ -37,6 +36,8 @@ export type AnalysisResult = {
   scene: SceneSpec;
   source: "live";
 };
+
+class AnalysisRefused extends Error {}
 
 function isSupportedScene(scene: unknown): scene is SceneSpec {
   if (!scene || typeof scene !== "object") return false;
@@ -72,11 +73,14 @@ export async function analyzeSketch(file: File | Blob): Promise<AnalysisResult> 
       if (!response.ok) {
         const message = typeof data?.message === "string" ? data.message : "Could not analyze this sketch.";
         lastError = new Error(message);
+        // A 4xx is the backend's real answer. Only retry the direct URL when the server was not reached.
+        if (response.status < 500) throw new AnalysisRefused(message);
         continue;
       }
 
       if (data?.scene && isSupportedScene(data.scene)) {
-        const s = data.scene;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const s = data.scene as any;
         if (s.scenario === "spring") {
           return {
             scene: {
@@ -114,6 +118,7 @@ export async function analyzeSketch(file: File | Blob): Promise<AnalysisResult> 
 
       lastError = new Error("The analysis did not return a supported physics scene.");
     } catch (error) {
+      if (error instanceof AnalysisRefused) throw error;
       lastError = error instanceof Error ? error : new Error(String(error));
     }
   }
@@ -122,48 +127,70 @@ export async function analyzeSketch(file: File | Blob): Promise<AnalysisResult> 
   throw new Error(`${message} Try again, or choose a preset sketch.`);
 }
 
-/**
- * Verification adapter
- */
-export async function verifySimulation(scene: SceneSpec): Promise<VerificationVerdict> {
-  await wait(450);
+const SESSION_ID = `s-${Date.now().toString(36)}`;
+const HEADERS = { "x-session-id": SESSION_ID };
 
-  if (scene.scenario === "spring") {
-    const omega = Math.sqrt(scene.spring_constant / Math.max(0.01, scene.mass));
-    const expectedSeconds = (2 * Math.PI) / omega;
-    const measuredSeconds = expectedSeconds * 1.006;
-    const errorPct = Math.abs((measuredSeconds - expectedSeconds) / expectedSeconds) * 100;
+export class BackendError extends Error {
+  code: string;
 
-    return {
-      status: errorPct <= 2 ? "match" : "mismatch",
-      source: "mock",
-      expectedSeconds,
-      measuredSeconds,
-      errorPct,
-      tolerancePct: 2,
-      formulaLatex: `T = 2\\pi\\sqrt{\\frac{m}{k}} = ${expectedSeconds.toFixed(3)}\\text{ s}`,
-      explanation: `Harmonic period T = 2π√(m/k) = 2π√(${scene.mass}/${scene.spring_constant.toFixed(1)}) = ${expectedSeconds.toFixed(3)}s. 120Hz Verlet simulation matches analytic theory within 0.6%.`,
-    };
+  constructor(code: string, message: string) {
+    super(message);
+    this.code = code;
   }
-
-  const inclineScene = scene as InclineSceneSpec;
-  const acceleration =
-    inclineScene.body === "ball"
-      ? (5 / 7) * inclineScene.gravity * Math.sin((inclineScene.angle_deg * Math.PI) / 180)
-      : inclineScene.gravity *
-        (Math.sin((inclineScene.angle_deg * Math.PI) / 180) -
-          inclineScene.friction * Math.cos((inclineScene.angle_deg * Math.PI) / 180));
-  const expectedSeconds = Math.sqrt((2 * inclineScene.length) / Math.max(acceleration, 0.01));
-  const measuredSeconds = expectedSeconds * 1.008;
-  const errorPct = Math.abs((measuredSeconds - expectedSeconds) / expectedSeconds) * 100;
-
-  return {
-    status: errorPct <= 2 ? "match" : "mismatch",
-    source: "mock",
-    expectedSeconds,
-    measuredSeconds,
-    errorPct,
-    tolerancePct: 2,
-    formulaLatex: inclineScene.body === "ball" ? "a = \\frac{5}{7} g \\sin\\theta" : "a = g(\\sin\\theta - \\mu\\cos\\theta)",
-  };
 }
+
+async function postJson<T>(path: string, payload: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: "POST",
+      headers: { ...HEADERS, "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new BackendError("backend_unavailable", "Chalk's server is not reachable.");
+  }
+  // Vite's proxy answers 502 with an empty body when the backend is not running.
+  const body = await response.json().catch(() => null);
+  if (response.ok && body) return body as T;
+  if (body?.code) throw new BackendError(body.code, body.message);
+  throw new BackendError("backend_unavailable", "Chalk's server is not reachable.");
+}
+
+export type RawVerification = {
+  verdict: "match" | "mismatch" | "not_applicable";
+  expected: { time_to_end_s: number | null } | null;
+  measured: Measurement;
+  error_pct: number | null;
+  tolerance_pct: number;
+  formula: string | null;
+};
+
+export async function verifyMeasurement(scene: SceneSpec, measured: Measurement) {
+  const raw = await postJson<RawVerification>("/api/v1/verify", { scene, measured });
+  const verdict: VerificationVerdict = {
+    source: "backend",
+    status: raw.verdict,
+    expectedSeconds: raw.expected?.time_to_end_s ?? 0,
+    measuredSeconds: raw.measured.time_to_end_s ?? 0,
+    errorPct: raw.error_pct ?? 0,
+    tolerancePct: raw.tolerance_pct,
+    formulaLatex: raw.formula ?? undefined,
+  };
+  return { verdict, raw };
+}
+
+export async function explainResult(scene: SceneSpec, verification: RawVerification, prediction: string | null) {
+  const { text } = await postJson<{ text: string }>("/api/v1/explain", { scene, verification, prediction });
+  return text;
+}
+
+export async function sendFollowup(scene: SceneSpec, text: string) {
+  const result = await postJson<{ scene: SceneSpec; changes: { field: string; value: unknown }[] }>("/api/v1/scenes/followup", { scene, text });
+  if (!isSupportedScene(result.scene)) {
+    throw new BackendError("unsupported_problem", `Chalk read a ${(result.scene as { scenario: string }).scenario} problem, but this lab only runs inclined planes and springs for now.`);
+  }
+  return result;
+}
+
+export const recordPrediction = (text: string) => postJson("/api/v1/predictions", { text });

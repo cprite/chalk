@@ -5,14 +5,19 @@ import { PresentationStage } from "./components/PresentationStage";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { SketchPanel } from "./components/SketchPanel";
 import { VoiceAssistant } from "./components/VoiceAssistant";
-import { analyzeSketch, createDemoScene, verifySimulation } from "./integrations/mock";
-import { executeVoiceTurn } from "./integrations/live";
+import { analyzeSketch, BackendError, createDemoScene, explainResult, recordPrediction, sendFollowup, verifyMeasurement } from "./integrations/backend";
+import { parseVoiceIntent, speakAloud } from "./integrations/live";
+import { measureIncline, measureSpring } from "./physics/rapierMeasure";
 import { dismissPresentationOverlay } from "./presentation";
 import { getSketchImageValidationError } from "./sketchFile";
 import type { PresentationOverlay } from "./presentation";
 import type { InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict, VoiceState } from "./types";
 
 const initialScene = createDemoScene();
+
+// JavaScript's \\b only understands Latin letters, so it cannot end a Russian word.
+export const startsWithWord = (text: string, words: string) =>
+  new RegExp(`^(${words})(?=[\\s,.:!?]|$)`, "i").test(text);
 
 type VoiceMessage = {
   speaker: "You" | "Chalk";
@@ -43,6 +48,8 @@ export default function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [presentationOverlay, setPresentationOverlay] = useState<PresentationOverlay>(null);
   const [voiceHistory, setVoiceHistory] = useState<VoiceMessage[]>([]);
+  const [prediction, setPrediction] = useState<string | null>(null);
+  const latestTurn = useRef(0);
 
   useEffect(() => () => {
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
@@ -151,10 +158,40 @@ export default function App() {
     await analyzeWithFile(file);
   };
 
+  const say = (command: string, text: string) => {
+    setAssistantResponse(text);
+    setVoiceHistory((history) => [...history, { speaker: "You", text: command }, { speaker: "Chalk", text }]);
+    setVoiceState("speaking");
+    speakAloud(text);
+  };
+
   const runVerification = async (sceneToVerify = scene) => {
+    const turn = ++latestTurn.current;
     setIsVerifying(true);
     try {
-      setVerdict(await verifySimulation(sceneToVerify));
+      if (sceneToVerify.scenario !== "incline" && sceneToVerify.scenario !== "spring") {
+        throw new Error("This scenario has no check yet.");
+      }
+      const measured = sceneToVerify.scenario === "spring"
+        ? await measureSpring(sceneToVerify)
+        : await measureIncline(sceneToVerify);
+      const result = await verifyMeasurement(sceneToVerify, measured);
+      setVerdict(result.verdict);
+      const text = await explainResult(sceneToVerify, result.raw, prediction);
+      // The user moved on while the model was answering, so this explanation is out of date.
+      if (turn !== latestTurn.current) return;
+      setAssistantResponse(text);
+      setVoiceHistory((history) => [...history, { speaker: "Chalk", text }]);
+      speakAloud(text);
+    } catch (error) {
+      setVerdict({
+        status: "not_applicable",
+        expectedSeconds: 0,
+        measuredSeconds: 0,
+        errorPct: 0,
+        tolerancePct: 2,
+        explanation: error instanceof Error ? error.message : "The check did not run.",
+      });
     } finally {
       setIsVerifying(false);
     }
@@ -168,24 +205,63 @@ export default function App() {
   const handleVoiceCommand = async (command: string) => {
     setVoiceError(null);
     setTranscript(command);
-    try {
-      const turn = await executeVoiceTurn(command, setVoiceState, scene);
-      setAssistantResponse(turn.text);
-      setVoiceHistory((history) => [...history, { speaker: "You", text: command }, { speaker: "Chalk", text: turn.text }]);
-      const nextScene = turn.updatedScene && Object.keys(turn.updatedScene).length > 0
-        ? { ...scene, ...turn.updatedScene }
-        : scene;
-      if (nextScene !== scene) {
-        setScene(nextScene);
+    const text = command.trim();
+    if (!text) return;
+    latestTurn.current += 1;
+
+    // Instant local controls: no model call, so they work the moment the button would.
+    if (startsWithWord(text, "run|start|play|запусти|пуск|старт")) {
+      say(command, "Launching the simulation.");
+      setIsPlaying(true);
+      void runVerification();
+      return;
+    }
+    if (startsWithWord(text, "pause|stop|halt|пауза|стоп")) {
+      say(command, "Paused the simulation.");
+      setIsPlaying(false);
+      return;
+    }
+    if (startsWithWord(text, "i think|i predict|prediction|думаю|я думаю|прогноз")) {
+      setPrediction(text);
+      say(command, "Prediction recorded. Run the simulation to test it.");
+      void recordPrediction(text).catch(() => undefined);
+      return;
+    }
+
+    // Spring assembly layouts are a visual CAD preview, handled by the local parser.
+    if (/springs? in|series|parallel|hooke|oscillator|пружин/i.test(text)) {
+      const local = parseVoiceIntent(text, scene as InclineSceneSpec);
+      if (Object.keys(local.updates).length > 0) {
+        setScene({ ...scene, ...local.updates } as SceneSpec);
         setVerdict(null);
       }
-      if (turn.shouldPlay !== undefined) {
-        setIsPlaying(turn.shouldPlay);
-        if (turn.shouldPlay) void runVerification(nextScene);
-      }
+      say(command, local.explanation);
+      return;
+    }
+
+    setVoiceState("thinking");
+    try {
+      const result = await sendFollowup(scene, text);
+      setScene(result.scene);
+      setVerdict(null);
+      setIsPlaying(false);
+      const changed = result.changes.map((c) => `${c.field} = ${c.value}`).join(", ");
+      say(command, changed ? `Changed ${changed}. What do you predict will happen?` : "New experiment ready. What do you predict will happen?");
     } catch (error) {
-      setVoiceState("error");
-      setVoiceError(error instanceof Error ? error.message : "Voice command failed. Try again.");
+      if (error instanceof BackendError && error.code !== "model_unavailable" && error.code !== "backend_unavailable") {
+        say(command, error.message);
+        return;
+      }
+      // Model or backend is down: fall back to the phrases we can read locally.
+      const local = parseVoiceIntent(text, scene as InclineSceneSpec);
+      if (Object.keys(local.updates).length > 0) {
+        setScene({ ...scene, ...local.updates } as SceneSpec);
+        setVerdict(null);
+        say(command, local.explanation);
+      } else {
+        setVoiceState("error");
+        setVoiceError(error instanceof Error ? error.message : "Voice command failed. Try again.");
+      }
     }
   };
 
@@ -240,6 +316,7 @@ export default function App() {
   const resetScene = () => {
     setScene(initialScene);
     setSceneSource("demo");
+    setPrediction(null);
     setIsPlaying(false);
     setVerdict(null);
     setAnalysisSuccess(null);

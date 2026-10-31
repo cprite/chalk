@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeSketch, createDemoScene, verifySimulation } from "./mock";
+import {analyzeSketch, createDemoScene} from "./backend";
 import { completeVoiceTurn } from "./live";
 
 describe("mock integration adapters", () => {
@@ -12,7 +12,7 @@ describe("mock integration adapters", () => {
 
       expect(result.source).toBe("live");
       expect(result.scene.scenario).toBe("incline");
-      expect(result.scene.angle_deg).toBeGreaterThan(0);
+      expect((result.scene as { angle_deg: number }).angle_deg).toBeGreaterThan(0);
       expect(result.scene.assumptions).not.toHaveLength(0);
     } finally {
       globalThis.fetch = originalFetch;
@@ -52,14 +52,6 @@ describe("mock integration adapters", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
-  });
-
-  it("reports a close theory-versus-simulation match for the demo scene", async () => {
-    const verdict = await verifySimulation(createDemoScene());
-
-    expect(verdict.source).toBe("mock");
-    expect(verdict.status).toBe("match");
-    expect(verdict.errorPct).toBeLessThanOrEqual(verdict.tolerancePct);
   });
 
   it("moves the mock voice client from thinking to speaking", async () => {

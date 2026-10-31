@@ -23,7 +23,8 @@ export function parseVoiceIntent(
   shouldPlay?: boolean;
 } {
   const p = prompt.toLowerCase().trim();
-  const baseScene: SceneSpec = scene ?? {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const baseScene: any = scene ?? {
     scenario: "incline",
     body: "ball",
     mass: 1,
