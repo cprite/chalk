@@ -305,7 +305,6 @@ export async function executeVoiceTurn(
             const s = data.scene;
             const customExp = `Configured apparatus for: "${prompt}". Primary law: ${s.primary_law || s.scenario} (${s.formula || "F = ma"}).`;
             onStateChange("speaking");
-            speakAloud(customExp);
             return {
               text: customExp,
               updatedScene: s,
