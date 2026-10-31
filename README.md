@@ -1,62 +1,97 @@
 # Chalk
 
-Dictate a physics experiment and change it by voice in a live 3D simulation. Every simulation is checked against the analytic solution, and any mismatch is shown on screen.
+**Describe a physics experiment out loud. Change it by voice. Check the result against the formula.**
 
-Halloween at Imperial: Gemini Edition, Track 02. Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the 3D CAD asset specification in [CAD_MODELS.md](CAD_MODELS.md).
+Chalk turns what a teacher says or draws into a 3D physics experiment the class can change live. Students predict first, then watch a physics engine run the experiment, and code compares the measured result with the analytic solution.
 
-## Local development
+Built at Halloween at Imperial: Gemini Edition, Track 02: Multimodal & Human-Centric AI.
 
-The frontend is a React + TypeScript + Vite app in [`frontend/`](frontend/). Its concise implementation, mock-to-real integration map, and frontend roadmap are in [frontend/README.md](frontend/README.md).
+## The moment to try
+
+1. Say: *"A ball rolls down a 30 degree slope, 4 metres long."*
+2. Predict: *"I think a heavier ball gets there faster."*
+3. Say: *"Double the mass."* and run it again.
+
+The time stays at about 1.51 s, because mass is not in the formula for a rolling ball. Do the same with a mass on a spring and the period changes, from 1.28 s to 1.81 s when the mass doubles from 5 kg to 10 kg.
+
+## The model proposes, code checks
+
+The model never decides whether a result is correct.
+
+| Step | Who does it | How |
+|---|---|---|
+| Speech to text | `gemini-3.8-flash` | Recorded audio, English only. Silence is never sent |
+| Speech or drawing to a scene | `gemini-4-argon` | Structured output, validated against a strict schema |
+| "What if…" changes | `gemini-4-argon` | Only allowed fields, with range checks |
+| Measuring the experiment | Rapier physics engine | Runs in the browser and knows nothing about the formula |
+| Expected result | Python solver | Closed-form formulas |
+| **Verdict** | **Code** | `match` within a 2% tolerance, otherwise `mismatch` |
+| Explanation | `gemini-4-argon` | Uses only the numbers it is given |
+
+If the input is not a supported physics problem, Chalk says so instead of guessing. If the check cannot run, the screen says "Could not check".
+
+## What is verified
+
+| Scenario | Measured in Rapier and checked by code |
+|---|---|
+| Ball or block on an incline, including slip and friction that holds a block still | Yes |
+| Vertical spring oscillator | Yes |
+| Other scenes, such as projectile, collision, cloud chamber and generated apparatus | No. These are visual previews |
+
+Rapier agrees with the formulas within 1% for a rolling ball at 15–70° on 1–8 m slopes. Spring and block cases are covered within the 2% tolerance by `frontend/src/physics/rapierMeasure.test.ts`.
+
+## Run it
+
+You need Python 3.11, Node 22.12 or newer, Chrome and a Gemini API key.
 
 ```bash
+# Backend
+cd backend
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+export GEMINI_API_KEY=your_key
+.venv/bin/python -m uvicorn app.main:app --port 8000
+```
+
+```bash
+# Frontend, in a second terminal
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Run `npm run lint && npm test && npm run build` before opening a pull request. The canonical team architecture and shared scene contract remain in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [contracts/scene_spec.schema.json](contracts/scene_spec.schema.json).
+Open http://localhost:5173. Press the microphone, speak, then press it again. Typing works too.
 
-## План по функциям
+Test images are in `fixtures/drawings/`.
 
-Новые функции берём только после того, как весь предыдущий уровень работает сквозным прогоном. После 15:15 только исправление ошибок.
+## Tests
 
-### P0. Обязательно сегодня
+```bash
+cd backend && .venv/bin/python -m pytest -q
+cd frontend && npx vitest run
+```
 
-| Функция | Готово, когда |
-|---|---|
-| Диктовка превращается в `SceneSpec` | Распознанный текст уходит в `analyze`, сцена проверяется, неверная схема отклоняется |
-| Экран подтверждения распознанного | Видны тип, значения и допущения, можно подтвердить или исправить голосом |
-| 3D-симуляция плоскости: шар и блок | Движение соответствует параметрам сцены |
-| Аналитическая проверка и вердикт | На экране формула, симуляция, расхождение и вердикт |
-| Диктовка в браузере | Текст появляется на экране, сессия не обрывается за время демо |
-| Сценарий прогноза и «а если масса вдвое больше» | Прогноз до запуска, изменение параметра диктовкой, новый запуск и объяснение текстом на экране |
-| Защита ключа и входных данных | Ключа нет в браузере, токен короткоживущий, размер и тип файла проверяются |
-| Запись прогона и режим replay | Демо проходит без сети |
-| Сдача | README на английском, открытый репозиторий, запуск из чистого клона, видео, питч |
+## How it fits together
 
-### P1. Если успеем, по порядку
+```mermaid
+flowchart LR
+  U[Voice, text or drawing] --> FE[React, Three.js, Rapier]
+  FE -->|audio, text, image| API[FastAPI]
+  API --> G[Gemini]
+  G -->|JSON| API
+  API -->|validated scene| FE
+  FE -->|measured time| API
+  API --> S[Analytic solver]
+  S -->|verdict| FE
+```
 
-1. Рисунок: камера и анализ фото (backend уже готов, нужен интерфейс)
-2. Голос ассистента через TTS
-3. Сценарий снаряда
-4. Деплой frontend и backend по HTTPS
-5. Интерфейс для проектора и визуальная полировка
-6. Отчёт об эксперименте: условие, прогноз, результат, вердикт
-7. Понятный отказ для неподдерживаемых задач (поднять выше, если на тестах модель выдаёт сцены для таких задач)
-8. Маятник и столкновение
+The API key stays on the backend. Images are re-encoded to remove metadata, and logs contain no images or keys.
 
-### P2. Развитие продукта, сегодня только на слайде
+## Limitations
 
-- Workspace класса, задания и работы учеников
-- Режим зачёта: подсказки выключены, журнал работы, устная защита, оценку ставит учитель
-- Аккаунты, роли, хранение и защита данных учеников
-- Новые разделы физики: электричество, оптика, волны, термодинамика
-- Сравнение симуляции с данными реального опыта
-- Привязка к учебной программе
-- Многоязычные занятия
-- Интеграция с LMS
-- Совместная работа нескольких учеников в реальном времени
+- Mechanics only, in an idealised model with no air resistance. Chalk adds to a lab rather than replacing one.
+- Voice input is English only. Text input also understands Russian.
+- Hand-drawn angles without a written value are estimates, so Chalk shows what it read before you run it.
+- Built in five hours as a prototype. Accounts and classroom workspaces are the next step, not part of this version.
 
-### Сегодня не делаем
-
-Аккаунты, базу данных, произвольные сцены, генерацию кода моделью, видео и музыку на сцене. Чтобы не было спорного обещания, не говорим «любые эксперименты» и «заменяет лабораторию».
+See also [CAD_MODELS.md](CAD_MODELS.md) and the [architecture notes](docs/ARCHITECTURE.md).
