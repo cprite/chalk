@@ -8,6 +8,7 @@ import { VoiceAssistant } from "./components/VoiceAssistant";
 import { analyzeSketch, createDemoScene, verifySimulation } from "./integrations/mock";
 import { executeVoiceTurn } from "./integrations/live";
 import { dismissPresentationOverlay } from "./presentation";
+import { getSketchImageValidationError } from "./sketchFile";
 import type { PresentationOverlay } from "./presentation";
 import type { InclineSceneSpec, VerificationVerdict, VoiceState } from "./types";
 
@@ -21,7 +22,10 @@ type VoiceMessage = {
 export default function App() {
   const presentationRootRef = useRef<HTMLElement>(null);
   const [scene, setScene] = useState<InclineSceneSpec>(initialScene);
+  const [sceneSource, setSceneSource] = useState<"live" | "demo">("demo");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -40,8 +44,8 @@ export default function App() {
   const [voiceHistory, setVoiceHistory] = useState<VoiceMessage[]>([]);
 
   useEffect(() => () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-  }, [previewUrl]);
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+  }, []);
 
   useEffect(() => {
     const syncFullscreenState = () => {
@@ -71,16 +75,27 @@ export default function App() {
 
   const selectFile = (selected: File) => {
     setInputError(null);
-    if (!selected.type.startsWith("image/")) {
-      setInputError("Upload a PNG or JPEG image of your physics sketch.");
+    setPreviewError(null);
+    const validationError = getSketchImageValidationError(selected);
+    if (validationError) {
+      setInputError(validationError);
       return;
     }
-    if (selected.size > 5 * 1024 * 1024) {
-      setInputError("Your image is over the 5 MB limit. Choose a smaller file.");
-      return;
-    }
+
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    const nextPreviewUrl = URL.createObjectURL(selected);
+    previewUrlRef.current = nextPreviewUrl;
     setFile(selected);
-    setPreviewUrl(URL.createObjectURL(selected));
+    setPreviewUrl(nextPreviewUrl);
+  };
+
+  const handlePreviewError = (failedUrl: string) => {
+    if (previewUrlRef.current !== failedUrl) return;
+    URL.revokeObjectURL(failedUrl);
+    previewUrlRef.current = null;
+    setPreviewUrl(null);
+    setFile(null);
+    setPreviewError("We could not display that image. Choose a different PNG or JPEG sketch.");
   };
 
   const analyze = async () => {
@@ -88,7 +103,9 @@ export default function App() {
     setIsAnalyzing(true);
     setInputError(null);
     try {
-      setScene(await analyzeSketch(file));
+      const analysis = await analyzeSketch(file);
+      setScene(analysis.scene);
+      setSceneSource(analysis.source);
       setVerdict(null);
     } catch (error) {
       setInputError(error instanceof Error ? error.message : "We could not read that sketch. Please try again.");
@@ -183,8 +200,16 @@ export default function App() {
 
   const resetScene = () => {
     setScene(initialScene);
+    setSceneSource("demo");
     setIsPlaying(false);
     setVerdict(null);
+  };
+
+  const useDemoScene = () => {
+    setScene(createDemoScene());
+    setSceneSource("demo");
+    setVerdict(null);
+    setInputError(null);
   };
 
   return (
@@ -232,8 +257,13 @@ export default function App() {
           fileName={file?.name ?? null}
           isAnalyzing={isAnalyzing}
           error={inputError}
+          previewError={previewError}
+          sceneSource={sceneSource}
           onSelectFile={selectFile}
+          onPreviewError={handlePreviewError}
           onAnalyze={() => void analyze()}
+          onRetry={() => void analyze()}
+          onUseDemo={useDemoScene}
           onCameraRequest={() => setInputError("Camera access will connect to Gemini Live. Upload a photo for this demo mode.")}
         />
 

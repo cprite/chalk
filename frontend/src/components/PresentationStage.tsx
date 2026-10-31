@@ -83,7 +83,9 @@ export function PresentationStage({
     requestAnimationFrame(() => trigger?.focus());
   };
 
-  const verificationLabel = verdict?.status === "match"
+  const verificationLabel = verdict && verdict.source !== "backend"
+    ? "Demo comparison"
+    : verdict?.status === "match"
     ? "Verified"
     : verdict?.status === "mismatch"
       ? "Mismatch"

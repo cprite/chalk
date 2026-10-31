@@ -15,14 +15,13 @@ export const createDemoScene = (): InclineSceneSpec => ({
   assumptions: ["Rolling without slipping", "No air resistance"],
 });
 
-/**
- * Scene Analysis Adapter:
- * Attempts to call Nikolai's FastAPI endpoint `POST /api/v1/scenes/analyze`.
- * If the backend is running with Gemini Argon connected, it returns the real
- * extracted physics scene parameters. If offline or in demo mode, it seamlessly
- * falls back to the calibrated demo scene so the stage presentation never stalls.
- */
-export async function analyzeSketch(file: File): Promise<InclineSceneSpec> {
+export type AnalysisResult = {
+  scene: InclineSceneSpec;
+  source: "live";
+};
+
+/** Calls the validated FastAPI analysis endpoint. Demo use is an explicit UI action. */
+export async function analyzeSketch(file: File): Promise<AnalysisResult> {
   if (!file.type.startsWith("image/")) {
     throw new Error("Upload a PNG or JPEG image of your physics sketch.");
   }
@@ -31,38 +30,44 @@ export async function analyzeSketch(file: File): Promise<InclineSceneSpec> {
     throw new Error("Your image is over the 5 MB limit. Choose a smaller file.");
   }
 
-  try {
-    const formData = new FormData();
-    formData.append("image", file);
+  const formData = new FormData();
+  formData.append("image", file);
 
-    const response = await fetch("/api/v1/scenes/analyze", {
+  let response: Response;
+  try {
+    response = await fetch("/api/v1/scenes/analyze", {
       method: "POST",
       body: formData,
     });
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data?.scene && data.scene.scenario === "incline") {
-        return {
-          scenario: "incline",
-          body: data.scene.body || "ball",
-          mass: data.scene.mass || 1.0,
-          angle_deg: data.scene.angle_deg || 30,
-          length: data.scene.length || 4.0,
-          friction: data.scene.friction !== undefined ? data.scene.friction : 0.12,
-          gravity: data.scene.gravity || 9.81,
-          confidence: data.scene.confidence || 0.9,
-          assumptions: data.scene.assumptions || ["Parsed via Gemini Argon"],
-        };
-      }
-    }
   } catch {
-    // Backend server not started or unreachable, fallback to demo mode
+    throw new Error("Could not reach the analysis service. Check the connection and try again, or choose the demo scene.");
   }
 
-  // Graceful stage fallback
-  await wait(850);
-  return createDemoScene();
+  const data = await response.json().catch(() => null) as { message?: unknown; scene?: unknown } | null;
+  if (!response.ok) {
+    const message = typeof data?.message === "string" ? data.message : "Could not analyze this sketch.";
+    throw new Error(`${message} Try again, or choose the demo scene.`);
+  }
+
+  if (!isInclineScene(data?.scene)) {
+    throw new Error("The analysis did not return a supported inclined-plane scene. Try a clearer incline sketch, or choose the demo scene.");
+  }
+
+  return { scene: data.scene, source: "live" };
+}
+
+function isInclineScene(scene: unknown): scene is InclineSceneSpec {
+  if (!scene || typeof scene !== "object") return false;
+  const candidate = scene as Partial<InclineSceneSpec>;
+  return candidate.scenario === "incline" &&
+    (candidate.body === "ball" || candidate.body === "block") &&
+    typeof candidate.mass === "number" &&
+    typeof candidate.angle_deg === "number" &&
+    typeof candidate.length === "number" &&
+    typeof candidate.friction === "number" &&
+    typeof candidate.gravity === "number" &&
+    typeof candidate.confidence === "number" &&
+    Array.isArray(candidate.assumptions);
 }
 
 /**
@@ -82,6 +87,7 @@ export async function verifySimulation(scene: InclineSceneSpec): Promise<Verific
   const errorPct = Math.abs((measuredSeconds - expectedSeconds) / expectedSeconds) * 100;
 
   return {
+    source: "mock",
     status: errorPct <= 2 ? "match" : "mismatch",
     expectedSeconds,
     measuredSeconds,

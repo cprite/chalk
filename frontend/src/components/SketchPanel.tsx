@@ -5,8 +5,13 @@ type SketchPanelProps = {
   fileName: string | null;
   isAnalyzing: boolean;
   error: string | null;
+  previewError: string | null;
+  sceneSource: "live" | "demo";
   onSelectFile: (file: File) => void;
+  onPreviewError: (url: string) => void;
   onAnalyze: () => void;
+  onRetry: () => void;
+  onUseDemo: () => void;
   onCameraRequest: () => void;
 };
 
@@ -15,8 +20,13 @@ export function SketchPanel({
   fileName,
   isAnalyzing,
   error,
+  previewError,
+  sceneSource,
   onSelectFile,
+  onPreviewError,
   onAnalyze,
+  onRetry,
+  onUseDemo,
   onCameraRequest,
 }: SketchPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,7 +54,11 @@ export function SketchPanel({
 
       <div className={`sketch-preview ${previewUrl ? "sketch-preview--filled" : ""}`}>
         {previewUrl ? (
-          <img src={previewUrl} alt="Preview of your uploaded physics sketch" />
+          <img src={previewUrl} alt="Preview of your uploaded physics sketch" onError={() => onPreviewError(previewUrl)} />
+        ) : previewError ? (
+          <div className="empty-sketch" role="status">
+            <span>{previewError}</span>
+          </div>
         ) : (
           <div className="empty-sketch" aria-hidden="true">
             <svg viewBox="0 0 160 104" role="img">
@@ -59,7 +73,18 @@ export function SketchPanel({
       </div>
 
       <p className="upload-name" aria-live="polite">{fileName ?? "PNG or JPEG · up to 5 MB"}</p>
-      {error ? <p className="inline-error" role="alert">{error}</p> : null}
+      {error ? (
+        <div className="inline-error" role="alert">
+          <p>{error}</p>
+          <div className="stacked-actions">
+            <button className="button button--secondary" type="button" disabled={isAnalyzing} onClick={onRetry}>Retry analysis</button>
+            <button className="button button--ghost" type="button" disabled={isAnalyzing} onClick={onUseDemo}>Use demo scene</button>
+          </div>
+        </div>
+      ) : null}
+      <p className="scene-provenance" aria-live="polite">
+        {sceneSource === "live" ? "Live Gemini analysis applied to this experiment." : "Demo scene active — this experiment was not generated from your uploaded sketch."}
+      </p>
 
       <div className="stacked-actions">
         <button className="button button--secondary" type="button" onClick={() => inputRef.current?.click()}>
