@@ -89,7 +89,7 @@ export function buildInclineRampCAD(lengthMeters: number, angleDeg: number): {
   root.add(baseMesh);
 
   // Support vertical post on the left (high end of incline)
-  const leftX = - (visualLen * Math.cos(theta)) / 2;
+  const leftX = -(visualLen * Math.cos(theta)) / 2;
   const topY = visualLen * Math.sin(theta);
   const pillarGeo = new THREE.CylinderGeometry(0.05, 0.06, Math.max(0.2, topY), 20);
   const pillar = new THREE.Mesh(pillarGeo, CAD_MATERIALS.anodizedAluminum);
@@ -126,7 +126,7 @@ export function buildInclineRampCAD(lengthMeters: number, angleDeg: number): {
   plankBed.receiveShadow = true;
   rampPlank.add(plankBed);
 
-  // Side guide rails with ruler ticks
+  // Side guide rails
   for (const zOffset of [-0.42, 0.42]) {
     const rail = new THREE.Mesh(
       new THREE.BoxGeometry(visualLen, 0.06, 0.05),
@@ -136,7 +136,7 @@ export function buildInclineRampCAD(lengthMeters: number, angleDeg: number): {
     rampPlank.add(rail);
   }
 
-  // Ruler calibration tick marks every 0.5m along the ramp surface
+  // Ruler calibration tick marks
   const numTicks = Math.floor(visualLen / 0.35);
   for (let i = 1; i <= numTicks; i++) {
     const tick = new THREE.Mesh(
@@ -147,7 +147,7 @@ export function buildInclineRampCAD(lengthMeters: number, angleDeg: number): {
     rampPlank.add(tick);
   }
 
-  // Bottom rubber bumper stop at s = L
+  // Bottom rubber bumper stop
   const bumper = new THREE.Mesh(
     new THREE.BoxGeometry(0.09, 0.22, 0.84),
     CAD_MATERIALS.rubberStopper
@@ -161,33 +161,27 @@ export function buildInclineRampCAD(lengthMeters: number, angleDeg: number): {
 
 /**
  * 2. P0 CAD Body: Rolling Sphere with Orthogonal Meridian Stripes (`rolling_ball_cad.glb`)
- * Visually scales radius & brass weight rings with `massKg` so "double the mass"
- * visibly makes the sphere heavier in 3D while preserving a = (5/7) g sin(θ).
+ * Scales radius & weight rings with massKg so "double the mass" visibly enlarges the sphere.
  */
 export function buildRollingBallCAD(baseRadius = 0.2, massKg = 1.0): THREE.Group {
   const group = new THREE.Group();
   group.name = "Rolling_Ball_CAD";
 
-  // Cube-root mass scaling so doubling mass visibly enlarges the sphere
   const radius = baseRadius * Math.pow(Math.max(0.5, Math.min(10, massKg)), 0.24);
 
   const bodyMat =
     massKg >= 2.0
       ? new THREE.MeshStandardMaterial({
-          color: 0x9e472a, // deeper heavy cast-bronze/terracotta tone for heavier mass
+          color: 0x9e472a,
           roughness: 0.25,
           metalness: 0.48,
         })
       : CAD_MATERIALS.terracottaBody;
 
-  const sphere = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 32, 24),
-    bodyMat
-  );
+  const sphere = new THREE.Mesh(new THREE.SphereGeometry(radius, 32, 24), bodyMat);
   sphere.castShadow = true;
   group.add(sphere);
 
-  // Brass meridian bands so rotation omega = v/r is unmistakably visible
   const bandMat = CAD_MATERIALS.turnedBrass;
   const bandThickness = radius * (massKg >= 2.0 ? 0.075 : 0.045);
   const band1 = new THREE.Mesh(
@@ -201,7 +195,6 @@ export function buildRollingBallCAD(baseRadius = 0.2, massKg = 1.0): THREE.Group
   group.add(band2);
 
   if (massKg >= 1.8) {
-    // Extra equatorial heavy brass ring when mass is increased/doubled
     const heavyRing = band1.clone();
     heavyRing.rotation.y = Math.PI / 2;
     group.add(heavyRing);
@@ -218,13 +211,12 @@ export function buildRollingBallCAD(baseRadius = 0.2, massKg = 1.0): THREE.Group
 }
 
 /**
- * 3. P0 CAD Body: Sliding Friction Block with Brass Mass Stack (`sliding_block_cad.glb`)
+ * 3. P0 CAD Body: Sliding Friction Block with Stackable Brass Weights (`sliding_block_cad.glb`)
  */
 export function buildSlidingBlockCAD(massKg = 1.0): THREE.Group {
   const group = new THREE.Group();
   group.name = "Sliding_Block_CAD";
 
-  // Base sled block
   const sled = new THREE.Mesh(
     new THREE.BoxGeometry(0.44, 0.22, 0.36),
     CAD_MATERIALS.terracottaBody
@@ -233,7 +225,6 @@ export function buildSlidingBlockCAD(massKg = 1.0): THREE.Group {
   sled.castShadow = true;
   group.add(sled);
 
-  // Dark friction pad underneath
   const pad = new THREE.Mesh(
     new THREE.BoxGeometry(0.45, 0.03, 0.37),
     CAD_MATERIALS.rubberStopper
@@ -241,7 +232,6 @@ export function buildSlidingBlockCAD(massKg = 1.0): THREE.Group {
   pad.position.y = 0.015;
   group.add(pad);
 
-  // Stackable brass weight plates proportional to massKg
   const numPlates = Math.max(1, Math.min(5, Math.round(massKg)));
   for (let i = 0; i < numPlates; i++) {
     const plate = new THREE.Mesh(
@@ -257,7 +247,7 @@ export function buildSlidingBlockCAD(massKg = 1.0): THREE.Group {
 }
 
 /**
- * 4. P1 CAD Assembly: Projectile Launcher + Custom Projectile Props (`projectile_launcher_rig.glb`)
+ * 4. P1 CAD Assembly: Projectile Launcher (`projectile_launcher_rig.glb`)
  */
 export function buildProjectileLauncherCAD(
   heightMeters: number,
@@ -274,7 +264,6 @@ export function buildProjectileLauncherCAD(
   const visualH = Math.max(0.3, Math.min(2.2, heightMeters * 0.45));
   const launchX = -2.1;
 
-  // Ground calibration grid plank
   const groundBar = new THREE.Mesh(
     new THREE.BoxGeometry(5.4, 0.08, 1.1),
     CAD_MATERIALS.darkForestSteel
@@ -282,7 +271,6 @@ export function buildProjectileLauncherCAD(
   groundBar.position.set(0.2, -0.04, 0);
   root.add(groundBar);
 
-  // Launcher pedestal
   const pedestal = new THREE.Mesh(
     new THREE.BoxGeometry(0.46, visualH, 0.46),
     CAD_MATERIALS.anodizedAluminum
@@ -290,7 +278,6 @@ export function buildProjectileLauncherCAD(
   pedestal.position.set(launchX, visualH / 2, 0);
   root.add(pedestal);
 
-  // Articulated cannon barrel
   const barrelPivot = new THREE.Group();
   barrelPivot.position.set(launchX, visualH + 0.12, 0);
   barrelPivot.rotation.z = (angleDeg * Math.PI) / 180;
@@ -304,7 +291,6 @@ export function buildProjectileLauncherCAD(
   barrelPivot.add(barrelTube);
   root.add(barrelPivot);
 
-  // Pre-rendered Projectile Prop Swap
   const projectileMesh = new THREE.Group();
   if (preset === "rocket") {
     const body = new THREE.Mesh(
@@ -332,7 +318,7 @@ export function buildProjectileLauncherCAD(
 }
 
 /**
- * 5. Stage Finale CAD Assembly: Rutherford Alpha Particle Cloud Chamber (`cloud_chamber_rig.glb`)
+ * 5. Rutherford Alpha Particle Cloud Chamber CAD Assembly (`cloud_chamber_rig.glb`)
  */
 export function buildCloudChamberCAD(atomicNumberZ: number): {
   root: THREE.Group;
@@ -341,7 +327,6 @@ export function buildCloudChamberCAD(atomicNumberZ: number): {
   const root = new THREE.Group();
   root.name = "Cloud_Chamber_Rig";
 
-  // Anodized chamber base plate
   const basePlate = new THREE.Mesh(
     new THREE.CylinderGeometry(2.3, 2.4, 0.18, 40),
     CAD_MATERIALS.darkForestSteel
@@ -349,7 +334,6 @@ export function buildCloudChamberCAD(atomicNumberZ: number): {
   basePlate.position.y = -0.9;
   root.add(basePlate);
 
-  // Lower & Upper Copper Helmholtz Magnetic Coils
   for (const yPos of [-0.72, 0.85]) {
     const coil = new THREE.Mesh(
       new THREE.TorusGeometry(2.1, 0.11, 16, 48),
@@ -360,7 +344,6 @@ export function buildCloudChamberCAD(atomicNumberZ: number): {
     root.add(coil);
   }
 
-  // Transparent glass cylinder wall
   const glassWall = new THREE.Mesh(
     new THREE.CylinderGeometry(2.15, 2.15, 1.55, 40, 1, true),
     CAD_MATERIALS.glassChamber
@@ -368,7 +351,6 @@ export function buildCloudChamberCAD(atomicNumberZ: number): {
   glassWall.position.y = 0.06;
   root.add(glassWall);
 
-  // Lead collimator alpha source gun on the left
   const emitterBox = new THREE.Mesh(
     new THREE.BoxGeometry(0.65, 0.42, 0.42),
     CAD_MATERIALS.anodizedAluminum
@@ -376,7 +358,6 @@ export function buildCloudChamberCAD(atomicNumberZ: number): {
   emitterBox.position.set(-1.95, 0.05, 0);
   root.add(emitterBox);
 
-  // Thin Gold Foil sheet in the center
   const foilSheet = new THREE.Mesh(
     new THREE.PlaneGeometry(0.9, 0.9),
     CAD_MATERIALS.goldFoil
@@ -385,7 +366,6 @@ export function buildCloudChamberCAD(atomicNumberZ: number): {
   foilSheet.position.set(0, 0.05, 0);
   root.add(foilSheet);
 
-  // Central clustered atomic nucleus (Protons + Neutrons scaled by Z)
   const nucleusGroup = new THREE.Group();
   nucleusGroup.position.set(0, 0.05, 0);
   const nucleonCount = Math.max(4, Math.min(36, Math.round(atomicNumberZ * 0.45)));
@@ -412,7 +392,230 @@ export function buildCloudChamberCAD(atomicNumberZ: number): {
 }
 
 /**
- * 3D Force Vector Helper builder (Gravity mg, Normal N, Friction f, Velocity v)
+ * Parametric 3D Vertical Helical Spring Curve (hangs along -Y)
+ */
+export class VerticalHelicalSpringCurve extends THREE.Curve<THREE.Vector3> {
+  coils: number;
+  radius: number;
+  length: number;
+
+  constructor(coils = 8, radius = 0.11, length = 1.0) {
+    super();
+    this.coils = coils;
+    this.radius = radius;
+    this.length = length;
+  }
+
+  getPoint(t: number, optionalTarget = new THREE.Vector3()) {
+    const y = -t * this.length;
+    let x = 0;
+    let z = 0;
+    if (t > 0.05 && t < 0.95) {
+      const u = (t - 0.05) / 0.9;
+      const angle = u * Math.PI * 2 * this.coils;
+      x = Math.cos(angle) * this.radius;
+      z = Math.sin(angle) * this.radius;
+    }
+    return optionalTarget.set(x, y, z);
+  }
+}
+
+/**
+ * 6. Generative Modular Vertical Spring-Mass Assembly:
+ * Assembles 1 to 5 pre-baked springs in PARALLEL (side-by-side) or SERIES (chained end-to-end),
+ * calculating effective spring constant k_eff and linking CAD nodes dynamically in real-time.
+ */
+export interface GenerativeSpringConfig {
+  count: number; // 1, 2, 3, 4, 5 springs
+  arrangement: "series" | "parallel";
+  massKg: number;
+  kPerSpring?: number; // default 40 N/m
+}
+
+export interface GenerativeSpringAssembly {
+  root: THREE.Group;
+  springMeshes: THREE.Mesh[];
+  massGroup: THREE.Group;
+  topY: number;
+  restLength: number;
+  effectiveK: number;
+  arrangement: "series" | "parallel";
+  springCount: number;
+  connectors: THREE.Group[];
+}
+
+export function buildGenerativeSpringAssembly(
+  config: GenerativeSpringConfig
+): GenerativeSpringAssembly {
+  const { count = 1, arrangement = "parallel", massKg = 1.0, kPerSpring = 40.0 } = config;
+  const numSprings = Math.max(1, Math.min(5, Math.round(count)));
+  const topY = 2.45;
+
+  const root = new THREE.Group();
+  root.name = `Generative_Spring_Assembly_${arrangement}_${numSprings}`;
+
+  // 1. Support Gantry Frame
+  const baseFloor = new THREE.Mesh(
+    new THREE.BoxGeometry(2.4, 0.1, 1.4),
+    CAD_MATERIALS.darkForestSteel
+  );
+  baseFloor.position.set(0, -0.05, 0);
+  root.add(baseFloor);
+
+  // Vertical structural posts on left and right
+  for (const xSide of [-0.95, 0.95]) {
+    const post = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, 2.65, 18),
+      CAD_MATERIALS.anodizedAluminum
+    );
+    post.position.set(xSide, 1.28, 0);
+    root.add(post);
+  }
+
+  // Top gantry crossbeam
+  const topCrossbeam = new THREE.Mesh(
+    new THREE.BoxGeometry(2.1, 0.09, 0.28),
+    CAD_MATERIALS.darkForestSteel
+  );
+  topCrossbeam.position.set(0, topY + 0.045, 0);
+  root.add(topCrossbeam);
+
+  // Vertical calibration ruler with centimeter ticks
+  for (let y = 0.2; y <= 2.3; y += 0.2) {
+    const tick = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.008, 0.01),
+      CAD_MATERIALS.chalkWhite
+    );
+    tick.position.set(0.9, y, 0.08);
+    root.add(tick);
+  }
+
+  const springMeshes: THREE.Mesh[] = [];
+  const connectors: THREE.Group[] = [];
+
+  let effectiveK = kPerSpring;
+  let restLength = 1.1;
+
+  if (arrangement === "parallel") {
+    // PARALLEL: N springs side-by-side across Z axis
+    effectiveK = numSprings * kPerSpring;
+    restLength = 1.15;
+
+    // Determine Z positions for N parallel springs
+    const zSpan = Math.min(0.9, (numSprings - 1) * 0.24);
+    const zStep = numSprings > 1 ? zSpan / (numSprings - 1) : 0;
+    const startZ = -zSpan / 2;
+
+    for (let i = 0; i < numSprings; i++) {
+      const zPos = startZ + i * zStep;
+
+      // Top brass hook
+      const topHook = new THREE.Mesh(
+        new THREE.TorusGeometry(0.045, 0.012, 10, 20),
+        CAD_MATERIALS.turnedBrass
+      );
+      topHook.position.set(0, topY, zPos);
+      root.add(topHook);
+
+      // Helical vertical spring
+      const curve = new VerticalHelicalSpringCurve(9, 0.1, restLength);
+      const geo = new THREE.TubeGeometry(curve, 100, 0.015, 8, false);
+      const mesh = new THREE.Mesh(geo, CAD_MATERIALS.turnedBrass);
+      mesh.position.set(0, topY, zPos);
+      root.add(mesh);
+      springMeshes.push(mesh);
+    }
+  } else {
+    // SERIES: N springs chained end-to-end vertically
+    effectiveK = kPerSpring / numSprings;
+    const segLength = 1.4 / numSprings;
+    restLength = 1.4;
+
+    for (let i = 0; i < numSprings; i++) {
+      const curve = new VerticalHelicalSpringCurve(6, 0.1, segLength);
+      const geo = new THREE.TubeGeometry(curve, 80, 0.015, 8, false);
+      const mesh = new THREE.Mesh(geo, CAD_MATERIALS.turnedBrass);
+      mesh.position.set(0, topY - i * segLength, 0);
+      root.add(mesh);
+      springMeshes.push(mesh);
+
+      // Coupling ring between series segments
+      if (i < numSprings - 1) {
+        const ring = new THREE.Group();
+        const torus = new THREE.Mesh(
+          new THREE.TorusGeometry(0.05, 0.014, 10, 20),
+          CAD_MATERIALS.darkForestSteel
+        );
+        torus.rotation.x = Math.PI / 2;
+        ring.add(torus);
+        ring.position.set(0, topY - (i + 1) * segLength, 0);
+        root.add(ring);
+        connectors.push(ring);
+      }
+    }
+  }
+
+  // Hanging Mass Bob with stackable weights
+  const massGroup = new THREE.Group();
+  massGroup.name = "Hanging_Mass_Bob";
+
+  // Top spreader crossbar if parallel springs > 1
+  if (arrangement === "parallel" && numSprings > 1) {
+    const zSpan = Math.min(0.9, (numSprings - 1) * 0.24);
+    const spreader = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.04, zSpan + 0.12),
+      CAD_MATERIALS.anodizedAluminum
+    );
+    spreader.position.y = 0;
+    massGroup.add(spreader);
+  }
+
+  const blockRadius = 0.18 * Math.pow(Math.max(0.5, Math.min(10, massKg)), 0.22);
+  const mainBob = new THREE.Mesh(
+    new THREE.CylinderGeometry(blockRadius, blockRadius, 0.28, 24),
+    CAD_MATERIALS.terracottaBody
+  );
+  mainBob.position.y = -0.16;
+  massGroup.add(mainBob);
+
+  // Top attachment hook on mass
+  const massHook = new THREE.Mesh(
+    new THREE.TorusGeometry(0.05, 0.014, 10, 20),
+    CAD_MATERIALS.turnedBrass
+  );
+  massHook.position.y = 0.02;
+  massGroup.add(massHook);
+
+  // Stack of brass weight disks
+  const numPlates = Math.max(1, Math.min(5, Math.round(massKg)));
+  for (let i = 0; i < numPlates; i++) {
+    const plate = new THREE.Mesh(
+      new THREE.CylinderGeometry(blockRadius * 0.85, blockRadius * 0.85, 0.04, 20),
+      CAD_MATERIALS.turnedBrass
+    );
+    plate.position.y = -0.32 - i * 0.045;
+    massGroup.add(plate);
+  }
+
+  const initialY = topY - restLength;
+  massGroup.position.set(0, initialY, 0);
+  root.add(massGroup);
+
+  return {
+    root,
+    springMeshes,
+    massGroup,
+    topY,
+    restLength,
+    effectiveK,
+    arrangement,
+    springCount: numSprings,
+    connectors,
+  };
+}
+
+/**
+ * 3D Force Vector Helper builder
  */
 export function buildForceVectorsGroup(
   angleDeg: number,
@@ -423,7 +626,6 @@ export function buildForceVectorsGroup(
   vectors.name = "Force_Vectors_Overlay";
   const theta = (angleDeg * Math.PI) / 180;
 
-  // 1. Gravity vector mg (straight down -Y in world space, rotated +theta in ramp local space)
   const gravityDir = new THREE.Vector3(Math.sin(theta), -Math.cos(theta), 0).normalize();
   const gravityArrow = new THREE.ArrowHelper(
     gravityDir,
@@ -435,7 +637,6 @@ export function buildForceVectorsGroup(
   );
   vectors.add(gravityArrow);
 
-  // 2. Normal force vector N (+Y in ramp local space)
   const normalArrow = new THREE.ArrowHelper(
     new THREE.Vector3(0, 1, 0),
     new THREE.Vector3(0, 0, 0),
@@ -446,7 +647,6 @@ export function buildForceVectorsGroup(
   );
   vectors.add(normalArrow);
 
-  // 3. Down-ramp acceleration / velocity direction (+X in ramp local space)
   const motionArrow = new THREE.ArrowHelper(
     new THREE.Vector3(1, 0, 0),
     new THREE.Vector3(0, 0, 0),
@@ -457,7 +657,6 @@ export function buildForceVectorsGroup(
   );
   vectors.add(motionArrow);
 
-  // 4. Opposing friction vector (-X along ramp surface)
   const frictionLen = body === "ball" ? 0.25 : Math.min(0.6, friction * 0.55);
   if (frictionLen > 0.04) {
     const frictionArrow = new THREE.ArrowHelper(
@@ -473,130 +672,3 @@ export function buildForceVectorsGroup(
 
   return vectors;
 }
-
-/**
- * Parametric 3D Helical Spring Curve for Hooke's Law & Harmonic Oscillations
- */
-export class HelicalSpringCurve extends THREE.Curve<THREE.Vector3> {
-  coils: number;
-  radius: number;
-  length: number;
-
-  constructor(coils = 9, radius = 0.15, length = 1.85) {
-    super();
-    this.coils = coils;
-    this.radius = radius;
-    this.length = length;
-  }
-
-  getPoint(t: number, optionalTarget = new THREE.Vector3()) {
-    const x = t * this.length;
-    let y = 0;
-    let z = 0;
-    if (t > 0.05 && t < 0.95) {
-      const u = (t - 0.05) / 0.9;
-      const angle = u * Math.PI * 2 * this.coils;
-      y = Math.sin(angle) * this.radius;
-      z = Math.cos(angle) * this.radius;
-    }
-    return optionalTarget.set(x, y, z);
-  }
-}
-
-/**
- * 6. Harmonic Oscillator CAD Assembly: Spring-Mass Rig (`spring_mass_rig.glb`)
- */
-export function buildSpringMassCAD(massKg = 1.0): {
-  root: THREE.Group;
-  springGroup: THREE.Group;
-  springMesh: THREE.Mesh;
-  massGroup: THREE.Group;
-  restLength: number;
-  eqX: number;
-} {
-  const root = new THREE.Group();
-  root.name = "Spring_Mass_Rig";
-
-  const anchorX = -1.95;
-  const restLength = 1.85;
-  const eqX = anchorX + 0.14 + restLength;
-
-  // Base laboratory air-track rail
-  const rail = new THREE.Mesh(
-    new THREE.BoxGeometry(4.8, 0.1, 0.7),
-    CAD_MATERIALS.darkForestSteel
-  );
-  rail.position.set(0.1, -0.05, 0);
-  root.add(rail);
-
-  // Calibration tick marks along rail
-  for (let i = -7; i <= 7; i++) {
-    const tick = new THREE.Mesh(
-      new THREE.BoxGeometry(0.015, 0.005, 0.5),
-      i === 0 ? CAD_MATERIALS.terracottaBody : CAD_MATERIALS.anodizedAluminum
-    );
-    tick.position.set(eqX + i * 0.22, 0.003, 0);
-    root.add(tick);
-  }
-
-  // Anchor wall mount at left end
-  const anchorWall = new THREE.Mesh(
-    new THREE.BoxGeometry(0.24, 0.72, 0.6),
-    CAD_MATERIALS.anodizedAluminum
-  );
-  anchorWall.position.set(anchorX, 0.36, 0);
-  root.add(anchorWall);
-
-  const wallEyelet = new THREE.Mesh(
-    new THREE.TorusGeometry(0.065, 0.018, 12, 24),
-    CAD_MATERIALS.turnedBrass
-  );
-  wallEyelet.position.set(anchorX + 0.12, 0.35, 0);
-  root.add(wallEyelet);
-
-  // Helical coil spring
-  const springCurve = new HelicalSpringCurve(9, 0.15, restLength);
-  const springGeo = new THREE.TubeGeometry(springCurve, 140, 0.018, 8, false);
-  const springMesh = new THREE.Mesh(springGeo, CAD_MATERIALS.turnedBrass);
-
-  const springGroup = new THREE.Group();
-  springGroup.position.set(anchorX + 0.14, 0.35, 0);
-  springGroup.add(springMesh);
-  root.add(springGroup);
-
-  // Glider Mass Block with stackable brass weights
-  const massGroup = new THREE.Group();
-  massGroup.name = "Glider_Mass";
-  const blockRadius = 0.22 * Math.pow(Math.max(0.5, Math.min(10, massKg)), 0.22);
-  const blockMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(blockRadius * 2, 0.34, 0.44),
-    CAD_MATERIALS.terracottaBody
-  );
-  blockMesh.position.y = 0.17;
-  massGroup.add(blockMesh);
-
-  // Eyelet connecting mass to spring
-  const massEyelet = new THREE.Mesh(
-    new THREE.TorusGeometry(0.06, 0.018, 12, 24),
-    CAD_MATERIALS.turnedBrass
-  );
-  massEyelet.position.set(-blockRadius, 0.35, 0);
-  massGroup.add(massEyelet);
-
-  // Stack of brass weight plates proportional to massKg
-  const numPlates = Math.max(1, Math.min(5, Math.round(massKg)));
-  for (let i = 0; i < numPlates; i++) {
-    const plate = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.12, 0.04, 20),
-      CAD_MATERIALS.turnedBrass
-    );
-    plate.position.y = 0.36 + i * 0.045;
-    massGroup.add(plate);
-  }
-
-  massGroup.position.set(eqX, 0, 0);
-  root.add(massGroup);
-
-  return { root, springGroup, springMesh, massGroup, restLength, eqX };
-}
-

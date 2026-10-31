@@ -4,11 +4,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
   buildCloudChamberCAD,
   buildForceVectorsGroup,
+  buildGenerativeSpringAssembly,
   buildInclineRampCAD,
   buildProjectileLauncherCAD,
   buildRollingBallCAD,
   buildSlidingBlockCAD,
-  buildSpringMassCAD,
+  type GenerativeSpringAssembly,
 } from "../cad/prebakedModels";
 import { solveIncline } from "../physics/solver";
 import type { InclineSceneSpec } from "../types";
@@ -22,10 +23,12 @@ type PhysicsSceneProps = {
 };
 
 /**
- * Pre-Rendered 3D CAD & Analytical/Rapier Physics Viewport (`<PhysicsScene />`).
+ * Pre-Rendered 3D CAD & Generative Apparatus Physics Viewport (`<PhysicsScene />`).
  *
  * - Renders pre-baked CAD rigs (`/models/*.glb` + synchronous Three.js CAD prefabs)
  *   with < 20ms initialization latency.
+ * - Generative Modular Vertical Spring Assemblies: Dynamically configures 1 to 5 springs
+ *   in Parallel (side-by-side) or Series (chained end-to-end), oscillating vertically (up/down).
  * - Full interactive OrbitControls: click/drag to rotate 360°, right-click to pan, scroll to zoom.
  * - Dynamic CAD mass scaling: doubling mass visibly enlarges & adds weight rings to the ball.
  * - Supports 4-Way Pepper's Ghost Hologram Projection Mode (`gl.setViewport` / `gl.setScissor`).
@@ -42,6 +45,10 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
   const [activePov, setActivePov] = useState<"orbit" | "side" | "top" | "slope">("orbit");
   const [simTime, setSimTime] = useState(0);
   const [webglReady, setWebglReady] = useState(true);
+
+  // Generative AI / User Spring Setup Controls
+  const [springCount, setSpringCount] = useState(2);
+  const [springArrangement, setSpringArrangement] = useState<"parallel" | "series">("parallel");
 
   const solution = useMemo(() => solveIncline(scene), [scene]);
 
@@ -145,8 +152,9 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
     let projectileActor: THREE.Group | null = null;
     let projectileOrigin = new THREE.Vector3(-2.1, 0.8, 0);
     let chamberNucleus: THREE.Group | null = null;
-    let springRig: ReturnType<typeof buildSpringMassCAD> | null = null;
-    let springForceArrow: THREE.ArrowHelper | null = null;
+    let generativeSpring: GenerativeSpringAssembly | null = null;
+    let springUpForceArrow: THREE.ArrowHelper | null = null;
+    let springDownForceArrow: THREE.ArrowHelper | null = null;
     const alphaParticles: {
       mesh: THREE.Mesh;
       pos: THREE.Vector3;
@@ -161,7 +169,6 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
       worldRoot.add(rampRoot);
 
       inclineBodyGroup = new THREE.Group();
-      // Cube-root scaling so "double the mass" visibly enlarges & deepens bronze tint of ball
       bodyRadius =
         scene.body === "ball"
           ? 0.2 * Math.pow(Math.max(0.5, Math.min(10, scene.mass)), 0.24)
@@ -258,19 +265,35 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
         });
       }
     } else if (cadMode === "spring") {
-      springRig = buildSpringMassCAD(scene.mass);
-      worldRoot.add(springRig.root);
+      // Assemble modular vertical springs (Parallel or Series) driven by Generative CAD config
+      generativeSpring = buildGenerativeSpringAssembly({
+        count: springCount,
+        arrangement: springArrangement,
+        massKg: scene.mass,
+        kPerSpring: 40.0,
+      });
+      worldRoot.add(generativeSpring.root);
 
       if (showVectors) {
-        springForceArrow = new THREE.ArrowHelper(
-          new THREE.Vector3(-1, 0, 0),
-          new THREE.Vector3(springRig.eqX, 0.45, 0),
+        springUpForceArrow = new THREE.ArrowHelper(
+          new THREE.Vector3(0, 1, 0),
+          new THREE.Vector3(0, 1.0, 0),
+          0.6,
+          0x214a3d,
+          0.16,
+          0.09
+        );
+        worldRoot.add(springUpForceArrow);
+
+        springDownForceArrow = new THREE.ArrowHelper(
+          new THREE.Vector3(0, -1, 0),
+          new THREE.Vector3(0, 1.0, 0),
           0.6,
           0xc76f50,
           0.16,
           0.09
         );
-        worldRoot.add(springForceArrow);
+        worldRoot.add(springDownForceArrow);
       }
     }
 
@@ -343,38 +366,72 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
             }
           }
         }
-      } else if (cadMode === "spring" && springRig) {
-        const k = 32.0;
+      } else if (cadMode === "spring" && generativeSpring) {
+        // Vertical Harmonic Oscillator (Up & Down along Y)
         const m = Math.max(0.2, scene.mass);
-        const omega0 = Math.sqrt(k / m);
+        const g = scene.gravity;
+        const kEff = generativeSpring.effectiveK;
+        const omega0 = Math.sqrt(kEff / m);
         const period = (2 * Math.PI) / omega0;
-        const amplitude = 0.78;
-        const decay = 0.025;
 
+        // Static equilibrium extension y_eq = m*g / kEff
+        const yEq = Math.min(0.65, (m * g) / kEff);
+        const amplitude = 0.28;
         const activeT = isPlaying ? elapsedSec : 0;
-        const xDisp = isPlaying
-          ? amplitude * Math.cos(omega0 * activeT) * Math.exp(-decay * activeT)
-          : 0.65;
+
+        // Vertical harmonic bounce around equilibrium
+        const yOsc = isPlaying
+          ? amplitude * Math.cos(omega0 * activeT) * Math.exp(-0.02 * activeT)
+          : 0.18;
 
         setSimTime(isPlaying ? activeT % period : 0);
 
-        // Update mass block position
-        springRig.massGroup.position.x = springRig.eqX + xDisp;
+        const currentExtension = Math.max(0.05, yEq + yOsc);
+        const totalHangingLength = generativeSpring.restLength + currentExtension;
+        const massY = generativeSpring.topY - totalHangingLength;
 
-        // Dynamic 3D helical coil spring scaling
-        const currentLen = Math.max(0.35, springRig.restLength + xDisp);
-        springRig.springMesh.scale.x = currentLen / springRig.restLength;
+        // Move hanging mass UP AND DOWN along Y
+        generativeSpring.massGroup.position.y = massY;
 
-        // Dynamic Hooke's restoring force vector F = -kx
-        if (springForceArrow) {
-          const forceDir = xDisp > 0 ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(1, 0, 0);
-          springForceArrow.setDirection(forceDir);
-          springForceArrow.position.set(springRig.eqX + xDisp, 0.45, 0);
-          springForceArrow.setLength(
-            Math.max(0.02, Math.min(1.2, Math.abs(xDisp) * 1.15)),
+        // Stretch / Compress helical coils along vertical Y-axis
+        if (generativeSpring.arrangement === "parallel") {
+          const scaleY = totalHangingLength / generativeSpring.restLength;
+          for (const mesh of generativeSpring.springMeshes) {
+            mesh.scale.y = scaleY;
+          }
+        } else {
+          // Series: chain of N connected vertical springs
+          const N = generativeSpring.springCount;
+          const segRest = generativeSpring.restLength / N;
+          const segCurrent = totalHangingLength / N;
+          const segScale = segCurrent / segRest;
+
+          for (let i = 0; i < N; i++) {
+            const mesh = generativeSpring.springMeshes[i];
+            mesh.position.y = generativeSpring.topY - i * segCurrent;
+            mesh.scale.y = segScale;
+
+            if (i < N - 1 && generativeSpring.connectors[i]) {
+              generativeSpring.connectors[i].position.y =
+                generativeSpring.topY - (i + 1) * segCurrent;
+            }
+          }
+        }
+
+        // Real-time 3D Force Vectors (Gravity DOWN vs Spring UP)
+        if (springUpForceArrow && springDownForceArrow) {
+          const restoringForce = kEff * currentExtension;
+          const gravForce = m * g;
+
+          springUpForceArrow.position.set(0, massY + 0.12, 0.22);
+          springUpForceArrow.setLength(
+            Math.max(0.1, Math.min(1.2, (restoringForce / gravForce) * 0.55)),
             0.14,
             0.08
           );
+
+          springDownForceArrow.position.set(0, massY - 0.22, 0.22);
+          springDownForceArrow.setLength(0.55, 0.14, 0.08);
         }
       }
 
@@ -432,7 +489,16 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
       controls.dispose();
       renderer.dispose();
     };
-  }, [scene, isPlaying, cadMode, showVectors, hologramMode, solution]);
+  }, [
+    scene,
+    isPlaying,
+    cadMode,
+    showVectors,
+    hologramMode,
+    solution,
+    springCount,
+    springArrangement,
+  ]);
 
   const chartPaths = useMemo(() => {
     const pts = solution.trajectory;
@@ -545,7 +611,7 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
               borderRadius: "2px",
             }}
           >
-            CAD: Spring-Mass
+            CAD: Vertical Springs
           </button>
         </div>
 
@@ -637,6 +703,76 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
             {hologramMode ? "◈ 4-Way Hologram" : "◇ Hologram"}
           </button>
         </div>
+
+        {/* Generative CAD Apparatus Setup Bar (When Vertical Spring Mode is Active) */}
+        {cadMode === "spring" ? (
+          <div
+            style={{
+              width: "100%",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "8px",
+              paddingTop: "6px",
+              marginTop: "4px",
+              borderTop: "1px dashed rgba(180,194,180,0.5)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ fontSize: "0.62rem", color: "#617267" }}>Arrangement:</span>
+              <button
+                type="button"
+                onClick={() => setSpringArrangement("parallel")}
+                style={{
+                  padding: "2px 7px",
+                  border: "1px solid #496e60",
+                  background: springArrangement === "parallel" ? "#214a3d" : "transparent",
+                  color: springArrangement === "parallel" ? "#fbf9f2" : "#214a3d",
+                  borderRadius: "2px",
+                  fontSize: "0.64rem",
+                }}
+              >
+                Parallel (Side-by-side)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSpringArrangement("series")}
+                style={{
+                  padding: "2px 7px",
+                  border: "1px solid #496e60",
+                  background: springArrangement === "series" ? "#214a3d" : "transparent",
+                  color: springArrangement === "series" ? "#fbf9f2" : "#214a3d",
+                  borderRadius: "2px",
+                  fontSize: "0.64rem",
+                }}
+              >
+                Series (Chained vertically)
+              </button>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+              <span style={{ fontSize: "0.62rem", color: "#617267" }}>Connected Springs:</span>
+              {[1, 2, 3, 4, 5].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setSpringCount(num)}
+                  style={{
+                    padding: "2px 7px",
+                    border: "1px solid #809386",
+                    background: springCount === num ? "#c76f50" : "transparent",
+                    color: springCount === num ? "#fff" : "#314d3e",
+                    borderRadius: "2px",
+                    fontSize: "0.64rem",
+                  }}
+                >
+                  {num} {num === 1 ? "Spring" : "Springs"}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* 3D WebGL Canvas with OrbitControls */}
@@ -704,12 +840,25 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
         <div>
           <strong>
             {cadMode === "spring"
-              ? "Hooke's Law: F = −k·x | m·ẍ + k·x = 0"
+              ? `Vertical Harmonic Oscillator: m·ÿ + k_eff·y = 0 (${springCount} springs in ${springArrangement})`
               : solution.formulaEquation}
           </strong>
           <div style={{ color: "#617267", fontSize: "0.61rem" }}>
             {cadMode === "spring"
-              ? `Mass: ${scene.mass} kg · k = 32 N/m · ω₀ = ${(Math.sqrt(32 / Math.max(0.2, scene.mass))).toFixed(2)} rad/s · Period T = ${( (2 * Math.PI) / Math.sqrt(32 / Math.max(0.2, scene.mass)) ).toFixed(2)}s`
+              ? `Mass: ${scene.mass} kg · k_eff = ${(
+                  springArrangement === "parallel" ? springCount * 40 : 40 / springCount
+                ).toFixed(1)} N/m (${springArrangement === "parallel" ? "N·k" : "k/N"}) · ω₀ = √(k/m) = ${(
+                  Math.sqrt(
+                    (springArrangement === "parallel" ? springCount * 40 : 40 / springCount) /
+                      Math.max(0.2, scene.mass)
+                  )
+                ).toFixed(2)} rad/s · Period T = ${(
+                  (2 * Math.PI) /
+                  Math.sqrt(
+                    (springArrangement === "parallel" ? springCount * 40 : 40 / springCount) /
+                      Math.max(0.2, scene.mass)
+                  )
+                ).toFixed(2)}s`
               : `Mass: ${scene.mass} kg · t = ${simTime.toFixed(2)}s / ${solution.durationSeconds.toFixed(2)}s · a = ${solution.acceleration.toFixed(2)} m/s²`}
           </div>
         </div>
