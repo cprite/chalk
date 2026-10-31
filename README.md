@@ -4,7 +4,7 @@
 
 Chalk turns what a teacher says or draws into a 3D physics experiment the class can change live. Students predict first, then watch a physics engine run the experiment, and code compares the measured result with the analytic solution.
 
-Built at Halloween at Imperial: Gemini Edition, Track 02: Multimodal & Human-Centric AI.
+🥉 **3rd place, Track 02: Multimodal & Human-Centric AI**, at [Halloween at Imperial: Gemini Edition](https://luma.com/p41k1z3g) (2026).
 
 ## The moment to try
 
