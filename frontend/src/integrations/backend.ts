@@ -51,9 +51,6 @@ function isSupportedScene(scene: unknown): scene is SceneSpec {
   if (c.scenario === "generative") {
     return typeof c.title === "string";
   }
-  if (c.scenario === "projectile" || c.scenario === "pendulum" || c.scenario === "collision_1d") {
-    return true;
-  }
   return false;
 }
 
