@@ -623,14 +623,25 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
         const vA_after = ((mA - e * mB) * vA + (1 + e) * mB * vB) / (mA + mB);
         const vB_after = ((1 + e) * mA * vA + (mB - e * mA) * vB) / (mA + mB);
 
-        const xA0 = -1.4;
-        const xB0 = -0.2;
-        const relV = vA - vB;
-        const collisionT = relV > 0.05 ? (xB0 - xA0 - 0.4) / relV : 1.2;
-        const cycleDur = collisionT + 2.0;
+        // Infinite open track kinematics: dynamically centered collision
+        const simSpeedScale = 0.32;
+        const collisionT = 1.6; // collision occurs at 1.6s right at center stage
+        const cycleDur = 5.0; // 5.0s full run showing approach, impact, and post-collision free travel
 
         const t = isPlaying ? elapsedSec % cycleDur : 0;
         setSimTime(t);
+
+        const widthA = 0.38 * Math.pow(mA, 0.22);
+        const widthB = 0.38 * Math.pow(mB, 0.22);
+        const contactDist = (widthA + widthB) / 2 + 0.06;
+
+        // Relative velocity determine approach configuration
+        const relV = vA - vB;
+        const xImpactA = -contactDist / 2;
+        const xImpactB = contactDist / 2;
+
+        const xA0 = xImpactA - vA * collisionT * simSpeedScale;
+        const xB0 = xImpactB - vB * collisionT * simSpeedScale;
 
         let curXA: number;
         let curXB: number;
@@ -638,29 +649,34 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
         let curVB: number;
 
         if (t <= collisionT) {
-          curXA = xA0 + vA * t * 0.45;
-          curXB = xB0 + vB * t * 0.45;
+          curXA = xA0 + vA * t * simSpeedScale;
+          curXB = xB0 + vB * t * simSpeedScale;
           curVA = vA;
           curVB = vB;
         } else {
           const dtPost = t - collisionT;
-          const xImpactA = xA0 + vA * collisionT * 0.45;
-          const xImpactB = xB0 + vB * collisionT * 0.45;
-          curXA = xImpactA + vA_after * dtPost * 0.45;
-          curXB = xImpactB + vB_after * dtPost * 0.45;
+          curXA = xImpactA + vA_after * dtPost * simSpeedScale;
+          curXB = xImpactB + vB_after * dtPost * simSpeedScale;
           curVA = vA_after;
           curVB = vB_after;
         }
 
-        collisionTrack.cartA.position.x = Math.max(-1.9, Math.min(1.8, curXA));
-        collisionTrack.cartB.position.x = Math.max(-1.9, Math.min(1.8, curXB));
+        // Infinite length: NO boundary clamping! Carts travel freely on the open track
+        collisionTrack.cartA.position.x = curXA;
+        collisionTrack.cartB.position.x = curXB;
+
+        // Camera smoothly tracks the center-of-mass so both particles remain in full view
+        const xMid = (curXA + curXB) / 2;
+        if (!hologramMode && controlsRef.current) {
+          controlsRef.current.target.x = THREE.MathUtils.lerp(controlsRef.current.target.x, xMid * 0.5, 0.08);
+        }
 
         if (showVectors) {
           collisionTrack.arrowA.setDirection(new THREE.Vector3(curVA >= 0 ? 1 : -1, 0, 0));
-          collisionTrack.arrowA.setLength(Math.max(0.1, Math.min(0.9, Math.abs(curVA) * 0.25)), 0.12, 0.06);
+          collisionTrack.arrowA.setLength(Math.max(0.12, Math.min(1.2, Math.abs(curVA) * 0.15)), 0.12, 0.06);
 
           collisionTrack.arrowB.setDirection(new THREE.Vector3(curVB >= 0 ? 1 : -1, 0, 0));
-          collisionTrack.arrowB.setLength(Math.max(0.1, Math.min(0.9, Math.abs(curVB) * 0.25)), 0.12, 0.06);
+          collisionTrack.arrowB.setLength(Math.max(0.12, Math.min(1.2, Math.abs(curVB) * 0.15)), 0.12, 0.06);
         }
       }
 
