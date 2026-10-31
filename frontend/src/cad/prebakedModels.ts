@@ -841,11 +841,11 @@ export function buildCollisionTrackCAD(massA: number, massB: number): CollisionT
   const root = new THREE.Group();
   root.name = "Collision_Air_Track";
 
-  const trackLength = 60.0; // Open continuous runway (infinite length)
+  const trackLength = 120.0; // Infinite open runway (continuous extrusion rail with zero boundaries)
 
-  // 1. Air Track Base Bench & Extrusion Rail (continuous, no blocking end-walls)
+  // 1. Air Track Base Bench & Extrusion Rail (continuous open runway, NO blocking end-stops)
   const bench = new THREE.Mesh(
-    new THREE.BoxGeometry(trackLength, 0.08, 0.5),
+    new THREE.BoxGeometry(trackLength, 0.08, 0.55),
     CAD_MATERIALS.darkForestSteel
   );
   bench.position.set(0, -0.04, 0);
@@ -858,8 +858,8 @@ export function buildCollisionTrackCAD(massA: number, massB: number): CollisionT
   rail.position.set(0, 0.1, 0);
   root.add(rail);
 
-  // Periodic calibration ticks along the open track
-  for (let x = -25; x <= 25; x += 0.5) {
+  // Periodic laboratory millimeter / meter calibration ticks along the open track
+  for (let x = -55; x <= 55; x += 0.5) {
     const isMajor = Math.abs(x % 1.0) < 0.01;
     const tick = new THREE.Mesh(
       new THREE.BoxGeometry(0.012, isMajor ? 0.04 : 0.02, isMajor ? 0.18 : 0.1),
