@@ -54,8 +54,29 @@ class SpringScene(CommonBase):
     k2: float = Field(default=0.0, ge=0.0, le=50000.0)
 
 
+class GenerativeObject(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    type: str  # "block", "sphere", "spring", "string", "anchor", "ramp", "track", "bob"
+    label: str = ""
+    mass: float = 1.0
+    k: float = 0.0
+    position: list[float] = Field(default_factory=lambda: [0.0, 0.0, 0.0])
+    connects: list[str] = Field(default_factory=list)
+    is_fixed: bool = False
+
+
+class GenerativeScene(CommonBase):
+    scenario: Literal["generative"] = "generative"
+    title: str = Field(default="Custom Physics Apparatus", max_length=150)
+    primary_law: str = Field(default="Newtonian Mechanics", max_length=150)
+    formula: str = Field(default="", max_length=200)
+    mass: float = Field(default=1.0, gt=0.0, le=1000.0)
+    objects: list[GenerativeObject] = Field(default_factory=list)
+
+
 SceneSpec = Annotated[
-    Union[InclineScene, ProjectileScene, PendulumScene, Collision1DScene, SpringScene],
+    Union[InclineScene, ProjectileScene, PendulumScene, Collision1DScene, SpringScene, GenerativeScene],
     Field(discriminator="scenario"),
 ]
 

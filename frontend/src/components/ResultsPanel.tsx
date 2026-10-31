@@ -1,4 +1,4 @@
-import type { InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict } from "../types";
+import type { GenerativeSceneSpec, InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict } from "../types";
 
 type ResultsPanelProps = {
   scene: SceneSpec;
@@ -9,8 +9,10 @@ type ResultsPanelProps = {
 export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps) {
   const status = verdict?.status ?? "not_applicable";
   const isSpring = scene.scenario === "spring";
+  const isGenerative = scene.scenario === "generative";
   const springScene = isSpring ? (scene as SpringSceneSpec) : null;
-  const inclineScene = !isSpring ? (scene as InclineSceneSpec) : null;
+  const genScene = isGenerative ? (scene as GenerativeSceneSpec) : null;
+  const inclineScene = scene.scenario === "incline" ? (scene as InclineSceneSpec) : null;
   const isStatic = verdict?.status === "match" && verdict.expectedSeconds === 0;
   const seconds = (value: number | undefined) => (verdict && value ? `${value.toFixed(2)} s` : isStatic ? "At rest" : "—");
   const heading = isVerifying
@@ -42,6 +44,12 @@ export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps)
               Hooke's Law: F = -k·Δy (k_eff = {springScene?.spring_constant.toFixed(0)} N/m)
             </small>
           </>
+        ) : isGenerative && genScene ? (
+          <>
+            <span>{genScene.primary_law}</span>
+            <strong>{genScene.formula || "F_net = m·a"}</strong>
+            <small>{genScene.title}</small>
+          </>
         ) : inclineScene?.body === "ball" ? (
           <>
             <span>Rolling ball</span>
@@ -59,11 +67,11 @@ export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps)
 
       <dl className="result-values">
         <div>
-          <dt>{isSpring ? "Theory Period" : "Theory Time"}</dt>
+          <dt>{isSpring || isGenerative ? "Theory Period" : "Theory Time"}</dt>
           <dd>{seconds(verdict?.expectedSeconds)}</dd>
         </div>
         <div>
-          <dt>{isSpring ? "Sim Period" : "Sim Time"}</dt>
+          <dt>{isSpring || isGenerative ? "Sim Period" : "Sim Time"}</dt>
           <dd>{seconds(verdict?.measuredSeconds)}</dd>
         </div>
         <div>
@@ -87,8 +95,8 @@ export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps)
               ? `Outside the ${verdict.tolerancePct}% tolerance.`
               : verdict
               ? verdict.explanation ?? "The check did not run."
-              : isSpring
-              ? "Set the spring assembly in motion to compare period with theory."
+              : isSpring || isGenerative
+              ? "Set the apparatus in motion to compare live numerical simulation with theory."
               : `Set the body in motion to compare both results.`}
           </p>
         </div>

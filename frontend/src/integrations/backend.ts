@@ -48,6 +48,12 @@ function isSupportedScene(scene: unknown): scene is SceneSpec {
   if (c.scenario === "spring") {
     return typeof c.mass === "number" && typeof c.spring_constant === "number";
   }
+  if (c.scenario === "generative") {
+    return typeof c.title === "string";
+  }
+  if (c.scenario === "projectile" || c.scenario === "pendulum" || c.scenario === "collision_1d") {
+    return true;
+  }
   return false;
 }
 
@@ -98,18 +104,34 @@ export async function analyzeSketch(file: File | Blob): Promise<AnalysisResult> 
             },
             source: "live",
           };
+        } else if (s.scenario === "generative") {
+          return {
+            scene: {
+              scenario: "generative",
+              title: s.title || "Custom Physics Apparatus",
+              primary_law: s.primary_law || "Newtonian Mechanics",
+              formula: s.formula || "F_net = m*a",
+              mass: Number(s.mass ?? 1.0),
+              objects: Array.isArray(s.objects) ? s.objects : [],
+              gravity: Number(s.gravity ?? 9.81),
+              confidence: Number(s.confidence ?? 0.95),
+              assumptions: s.assumptions || ["Generative Physics Assembly via Gemini 4 Argon"],
+            },
+            source: "live",
+          };
         } else {
+          const inc = s as any;
           return {
             scene: {
               scenario: "incline",
-              body: s.body === "block" ? "block" : "ball",
-              mass: Number(s.mass ?? 1.0),
-              angle_deg: Number(s.angle_deg ?? 30),
-              length: Math.max(1.0, Math.min(10.0, Number(s.length ?? 4.0))),
-              friction: s.friction !== undefined ? Number(s.friction) : 0.0,
-              gravity: Number(s.gravity ?? 9.81),
-              confidence: Number(s.confidence ?? 0.95),
-              assumptions: s.assumptions || ["Parsed via Gemini 4 Argon"],
+              body: inc.body === "block" ? "block" : "ball",
+              mass: Number(inc.mass ?? 1.0),
+              angle_deg: Number(inc.angle_deg ?? 30),
+              length: Math.max(1.0, Math.min(10.0, Number(inc.length ?? 4.0))),
+              friction: inc.friction !== undefined ? Number(inc.friction) : 0.0,
+              gravity: Number(inc.gravity ?? 9.81),
+              confidence: Number(inc.confidence ?? 0.95),
+              assumptions: inc.assumptions || ["Parsed via Gemini 4 Argon"],
             },
             source: "live",
           };

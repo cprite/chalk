@@ -12,7 +12,9 @@ describe("mock integration adapters", () => {
 
       expect(result.source).toBe("live");
       expect(result.scene.scenario).toBe("incline");
-      expect((result.scene as { angle_deg: number }).angle_deg).toBeGreaterThan(0);
+      if (result.scene.scenario === "incline") {
+        expect(result.scene.angle_deg).toBeGreaterThan(0);
+      }
       expect(result.scene.assumptions).not.toHaveLength(0);
     } finally {
       globalThis.fetch = originalFetch;

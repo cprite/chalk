@@ -24,9 +24,11 @@ Scenarios:
 - projectile: mass, speed, angle_deg, height.
 - pendulum: mass, length, angle_deg.
 - collision_1d: mass_a, mass_b, velocity_a, velocity_b, restitution.
-- unsupported: anything else, including no physics problem. Explain why in reason.
+- generative: ANY other physics apparatus, setup, or experiment (e.g. coupled springs, Atwood machines, pulleys, carts, balance beams, circular motion, orbits, or custom arrangements). Fields: title, primary_law, formula, mass, objects (list of physical components: id, type, label, mass, k, position, connects, is_fixed).
+- unsupported: only if the input contains NO physics problem whatsoever (e.g. random selfie or landscape). Explain why in reason.
 
 Rules:
+- NEVER return "unsupported" if the drawing or prompt represents ANY physical system, experiment, or apparatus! Use "generative" (or "spring" / "incline" etc.) to assemble it.
 - Use a value that is written or spoken. Otherwise return null for it. Never invent a value.
 - Exception: if angle_deg is not written but the slope or launch is drawn, estimate it from the drawing and add an assumption saying it was estimated.
 - For springs:
@@ -35,6 +37,8 @@ Rules:
     - If connected side-by-side, arrangement is "parallel".
     - Standard school spring constants are typically in the range of 10 to 1000 N/m (e.g. 200 N/m, 300 N/m).
     - You may return k1, k2, spring_count, and arrangement. If spring_constant is null, the effective spring constant will be calculated automatically.
+- For generative scenes:
+  - Provide a descriptive title, the primary physics law, governing formula, and decompose the apparatus into physical objects (anchors, springs, blocks, spheres, pulleys, strings).
 - A circle on a slope is a ball, a rectangle is a block.
 - If the slope is described as smooth or frictionless, friction is 0.
 - confidence is how sure you are that you read the problem correctly, from 0 to 1.
@@ -50,13 +54,28 @@ class AnalysisError(Exception):
         self.message = message
 
 
+class FlatObject(BaseModel):
+    id: str
+    type: str = "block"
+    label: Optional[str] = ""
+    mass: Optional[float] = 1.0
+    k: Optional[float] = 0.0
+    position: Optional[list[float]] = None
+    connects: Optional[list[str]] = None
+    is_fixed: Optional[bool] = False
+
+
 class FlatSchema(BaseModel):
     # Gemini response schemas are simpler than our strict SceneSpec union, so the model fills
     # this flat shape and _convert_flat_to_scene builds and validates the real scene.
-    scenario: Literal["incline", "spring", "projectile", "pendulum", "collision_1d", "unsupported"]
+    scenario: Literal["incline", "spring", "projectile", "pendulum", "collision_1d", "generative", "unsupported"]
     confidence: Optional[float] = None
     assumptions: Optional[list[str]] = None
     reason: Optional[str] = None
+    title: Optional[str] = None
+    primary_law: Optional[str] = None
+    formula: Optional[str] = None
+    objects: Optional[list[FlatObject]] = None
 
     body: Optional[Literal["block", "ball"]] = None
     mass: Optional[float] = None
@@ -162,6 +181,32 @@ def _convert_flat_to_scene(flat: FlatAnalysisResponse) -> SceneSpec:
             "mass": _default(flat.mass, 1.0, "Default: mass 1 kg", assumptions),
             "length": flat.length,
             "angle_deg": flat.angle_deg,
+        }
+    elif flat.scenario == "generative":
+        objs = []
+        if flat.objects:
+            for o in flat.objects:
+                pos = list(o.position) if o.position else [0.0, 0.0, 0.0]
+                if len(pos) == 2:
+                    pos.append(0.0)
+                elif len(pos) < 2:
+                    pos = [0.0, 0.0, 0.0]
+                objs.append({
+                    "id": o.id,
+                    "type": o.type,
+                    "label": o.label or "",
+                    "mass": o.mass if o.mass is not None else 1.0,
+                    "k": o.k if o.k is not None else 0.0,
+                    "position": pos[:3],
+                    "connects": o.connects if o.connects is not None else [],
+                    "is_fixed": bool(o.is_fixed),
+                })
+        scene |= {
+            "title": flat.title or "Custom Physics Apparatus",
+            "primary_law": flat.primary_law or "Newtonian Mechanics",
+            "formula": flat.formula or "F_net = m*a",
+            "mass": _default(flat.mass, 1.0, "Default: mass 1 kg", assumptions),
+            "objects": objs,
         }
     else:
         scene |= {

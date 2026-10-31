@@ -230,7 +230,7 @@ export default function App() {
 
     // Spring assembly layouts are a visual CAD preview, handled by the local parser.
     if (/springs? in|series|parallel|hooke|oscillator|пружин/i.test(text)) {
-      const local = parseVoiceIntent(text, scene as InclineSceneSpec);
+      const local = parseVoiceIntent(text, scene as any);
       if (Object.keys(local.updates).length > 0) {
         setScene({ ...scene, ...local.updates } as SceneSpec);
         setVerdict(null);
@@ -253,7 +253,7 @@ export default function App() {
         return;
       }
       // Model or backend is down: fall back to the phrases we can read locally.
-      const local = parseVoiceIntent(text, scene as InclineSceneSpec);
+      const local = parseVoiceIntent(text, scene as any);
       if (Object.keys(local.updates).length > 0) {
         setScene({ ...scene, ...local.updates } as SceneSpec);
         setVerdict(null);
