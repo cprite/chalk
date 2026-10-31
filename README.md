@@ -2,7 +2,7 @@
 
 Describe a physics experiment out loud and talk to a live 3D simulation of it. Every simulation is checked against the analytic solution, and any mismatch is shown on screen.
 
-Halloween at Imperial: Gemini Edition, Track 02. Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Halloween at Imperial: Gemini Edition, Track 02. Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the 3D CAD asset specification in [CAD_MODELS.md](CAD_MODELS.md).
 
 ## Local development
 
