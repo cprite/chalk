@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { dismissPresentationOverlay, togglePresentationOverlay } from "../presentation";
 import type { PresentationOverlay } from "../presentation";
-import type { InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict, VoiceState } from "../types";
+import type { SceneSpec, VerificationVerdict, VoiceState } from "../types";
 import { Controls } from "./Controls";
 import { PhysicsScene } from "./PhysicsScene";
 import { ResultsPanel } from "./ResultsPanel";
@@ -39,6 +39,21 @@ const voiceLabels: Record<VoiceState, string> = {
   speaking: "Chalk",
   error: "Voice unavailable",
 };
+
+function getPresentationTitle(scene: SceneSpec): string {
+  switch (scene.scenario) {
+    case "incline":
+      return "Inclined plane";
+    case "spring":
+      return "Vertical spring oscillator";
+    case "collision_1d":
+      return "1D collision";
+    case "generative":
+      return scene.title || "Custom physics apparatus";
+    default:
+      return "Custom physics apparatus";
+  }
+}
 
 export function PresentationStage({
   scene,
@@ -108,8 +123,8 @@ export function PresentationStage({
       <header className="presentation-header">
         <div className="presentation-title">
           <a className="wordmark" href="#top" aria-label="Chalk home">chalk<span>.</span></a>
-          <p id="presentation-title">Inclined plane</p>
-          <span className="presentation-mode-badge"><i /> Mock mode</span>
+          <p id="presentation-title">{getPresentationTitle(scene)}</p>
+          <span className="presentation-mode-badge"><i /> Presentation Mode</span>
           {verificationLabel ? <span className="presentation-verification" aria-live="polite">{verificationLabel}</span> : null}
         </div>
         <div className="presentation-tools" aria-label="Presentation tools">

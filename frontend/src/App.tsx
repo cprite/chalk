@@ -12,13 +12,28 @@ import { measureIncline, measureSpring } from "./physics/rapierMeasure";
 import { dismissPresentationOverlay } from "./presentation";
 import { getSketchImageValidationError } from "./sketchFile";
 import type { PresentationOverlay } from "./presentation";
-import type { Collision1DSceneSpec, GenerativeSceneSpec, InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict, VoiceState } from "./types";
+import type { GenerativeSceneSpec, SceneSpec, VerificationVerdict, VoiceState } from "./types";
 
 const initialScene = createDemoScene();
 
 // JavaScript's \\b only understands Latin letters, so it cannot end a Russian word.
 export const startsWithWord = (text: string, words: string) =>
   new RegExp(`^(${words})(?=[\\s,.:!?]|$)`, "i").test(text);
+
+export const getAnalysisSuccess = (scene: SceneSpec): string => {
+  switch (scene.scenario) {
+    case "incline":
+      return `Live analysis: ${scene.angle_deg}° slope · ${scene.mass} kg ${scene.body}`;
+    case "spring":
+      return `Live analysis: ${scene.spring_count} springs in ${scene.arrangement} · ${scene.mass} kg`;
+    case "collision_1d":
+      return `Live analysis: 1D collision · Cart A: ${scene.mass_a} kg (${scene.velocity_a} m/s) · Cart B: ${scene.mass_b} kg (${scene.velocity_b} m/s)`;
+    case "generative":
+      return `Live analysis: ${scene.title || "Custom physics apparatus"}`;
+    default:
+      return "Live analysis complete.";
+  }
+};
 
 type VoiceMessage = {
   speaker: "You" | "Chalk";
@@ -88,30 +103,12 @@ export default function App() {
     setAnalysisSuccess(null);
     try {
       const analysis = await analyzeSketch(targetFile);
+      latestTurn.current += 1;
+      setIsVerifying(false);
       setScene(analysis.scene);
       setSceneSource(analysis.source);
       setVerdict(null);
-      if (analysis.scene.scenario === "spring") {
-        const spr = analysis.scene as SpringSceneSpec;
-        setAnalysisSuccess(
-          `Live analysis: ${spr.spring_count} springs in ${spr.arrangement} · ${spr.mass} kg (k_eff = ${spr.spring_constant.toFixed(0)} N/m)`
-        );
-      } else if (analysis.scene.scenario === "collision_1d") {
-        const col = analysis.scene as Collision1DSceneSpec;
-        setAnalysisSuccess(
-          `Live analysis: 1D collision · Cart A: ${col.mass_a} kg (${col.velocity_a} m/s) · Cart B: ${col.mass_b} kg (${col.velocity_b} m/s)`
-        );
-      } else if (analysis.scene.scenario === "generative") {
-        const gen = analysis.scene as GenerativeSceneSpec;
-        setAnalysisSuccess(
-          `Live analysis: ${gen.title} · ${gen.primary_law}`
-        );
-      } else {
-        const inc = analysis.scene as InclineSceneSpec;
-        setAnalysisSuccess(
-          `Live analysis: ${inc.angle_deg}° slope · ${inc.mass} kg ${inc.body}`
-        );
-      }
+      setAnalysisSuccess(getAnalysisSuccess(analysis.scene));
     } catch (error) {
       setInputError(error instanceof Error ? error.message : "We could not read that sketch. Please try again.");
     } finally {
@@ -187,13 +184,22 @@ export default function App() {
         ? await measureSpring(sceneToVerify)
         : await measureIncline(sceneToVerify);
       const result = await verifyMeasurement(sceneToVerify, measured);
-      setVerdict(result.verdict);
-      const text = await explainResult(sceneToVerify, result.raw, prediction);
-      // The user moved on while the model was answering, so this explanation is out of date.
       if (turn !== latestTurn.current) return;
-      setAssistantResponse(text);
-      setVoiceHistory((history) => [...history, { speaker: "Chalk", text }]);
+      setVerdict(result.verdict);
+
+      try {
+        const text = await explainResult(sceneToVerify, result.raw, prediction);
+        if (turn !== latestTurn.current) return;
+        setAssistantResponse(text);
+        setVoiceHistory((history) => [...history, { speaker: "Chalk", text }]);
+      } catch {
+        if (turn !== latestTurn.current) return;
+        const text = "The verification result is available, but Chalk could not generate an explanation.";
+        setAssistantResponse(text);
+        setVoiceHistory((history) => [...history, { speaker: "Chalk", text }]);
+      }
     } catch (error) {
+      if (turn !== latestTurn.current) return;
       setVerdict({
         status: "not_applicable",
         expectedSeconds: 0,
@@ -203,7 +209,7 @@ export default function App() {
         explanation: error instanceof Error ? error.message : "The check did not run.",
       });
     } finally {
-      setIsVerifying(false);
+      if (turn === latestTurn.current) setIsVerifying(false);
     }
   };
 
@@ -332,18 +338,24 @@ export default function App() {
   };
 
   const changeScene = (field: string, value: any) => {
+    latestTurn.current += 1;
+    setIsVerifying(false);
     setScene((current) => ({ ...current, [field]: value } as SceneSpec));
     setVerdict(null);
   };
 
   const changeBody = (body: "ball" | "block") => {
     if (scene.scenario === "incline") {
+      latestTurn.current += 1;
+      setIsVerifying(false);
       setScene((current) => ({ ...current, body } as SceneSpec));
       setVerdict(null);
     }
   };
 
   const handleSelectCadMode = (mode: CadPreviewMode) => {
+    latestTurn.current += 1;
+    setIsVerifying(false);
     setVerdict(null);
     if (mode === "incline") {
       setScene({
@@ -397,6 +409,8 @@ export default function App() {
   };
 
   const resetScene = () => {
+    latestTurn.current += 1;
+    setIsVerifying(false);
     setScene(initialScene);
     setSceneSource("demo");
     setPrediction(null);
@@ -406,6 +420,8 @@ export default function App() {
   };
 
   const useDemoScene = () => {
+    latestTurn.current += 1;
+    setIsVerifying(false);
     setScene(createDemoScene());
     setSceneSource("demo");
     setVerdict(null);
