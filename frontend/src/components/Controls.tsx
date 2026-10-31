@@ -1,4 +1,5 @@
 import type { Collision1DSceneSpec, GenerativeSceneSpec, InclineSceneSpec, SceneSpec, SpringSceneSpec } from "../types";
+import { getSceneAngle, getSceneMass } from "../types";
 
 type ControlsProps = {
   scene: SceneSpec;
@@ -222,7 +223,7 @@ export function Controls({ scene, isPlaying, onChange, onTogglePlay, onReset }: 
               </output>
             </label>
           </>
-        ) : inclineScene ? (
+        ) : (
           <>
             <label className="control-row">
               <span>Angle</span>
@@ -231,11 +232,11 @@ export function Controls({ scene, isPlaying, onChange, onTogglePlay, onReset }: 
                 min={5}
                 max={80}
                 step={1}
-                value={inclineScene.angle_deg}
+                value={inclineScene?.angle_deg ?? getSceneAngle(scene)}
                 onChange={(event) => onChange("angle_deg", Number(event.target.value))}
               />
               <output>
-                {inclineScene.angle_deg} <small>°</small>
+                {inclineScene?.angle_deg ?? getSceneAngle(scene)} <small>°</small>
               </output>
             </label>
 
@@ -246,11 +247,11 @@ export function Controls({ scene, isPlaying, onChange, onTogglePlay, onReset }: 
                 min={0.5}
                 max={100}
                 step={0.5}
-                value={inclineScene.mass}
+                value={inclineScene?.mass ?? getSceneMass(scene)}
                 onChange={(event) => onChange("mass", Number(event.target.value))}
               />
               <output>
-                {inclineScene.mass} <small>kg</small>
+                {inclineScene?.mass ?? getSceneMass(scene)} <small>kg</small>
               </output>
             </label>
 
@@ -261,15 +262,15 @@ export function Controls({ scene, isPlaying, onChange, onTogglePlay, onReset }: 
                 min={1}
                 max={25}
                 step={0.1}
-                value={inclineScene.gravity}
+                value={scene.gravity ?? 9.81}
                 onChange={(event) => onChange("gravity", Number(event.target.value))}
               />
               <output>
-                {inclineScene.gravity.toFixed(1)} <small>m/s²</small>
+                {(scene.gravity ?? 9.81).toFixed(1)} <small>m/s²</small>
               </output>
             </label>
           </>
-        ) : null}
+        )}
       </div>
     </section>
   );

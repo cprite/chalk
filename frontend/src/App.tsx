@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Controls } from "./components/Controls";
-import { PhysicsScene } from "./components/PhysicsScene";
+import { PhysicsScene, type CadPreviewMode } from "./components/PhysicsScene";
 import { PresentationStage } from "./components/PresentationStage";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { SketchPanel } from "./components/SketchPanel";
@@ -12,7 +12,7 @@ import { measureIncline, measureSpring } from "./physics/rapierMeasure";
 import { dismissPresentationOverlay } from "./presentation";
 import { getSketchImageValidationError } from "./sketchFile";
 import type { PresentationOverlay } from "./presentation";
-import type { InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict, VoiceState } from "./types";
+import type { Collision1DSceneSpec, GenerativeSceneSpec, InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict, VoiceState } from "./types";
 
 const initialScene = createDemoScene();
 
@@ -92,8 +92,19 @@ export default function App() {
       setSceneSource(analysis.source);
       setVerdict(null);
       if (analysis.scene.scenario === "spring") {
+        const spr = analysis.scene as SpringSceneSpec;
         setAnalysisSuccess(
-          `Live analysis: ${analysis.scene.spring_count} springs in ${analysis.scene.arrangement} · ${analysis.scene.mass} kg (k_eff = ${analysis.scene.spring_constant.toFixed(0)} N/m)`
+          `Live analysis: ${spr.spring_count} springs in ${spr.arrangement} · ${spr.mass} kg (k_eff = ${spr.spring_constant.toFixed(0)} N/m)`
+        );
+      } else if (analysis.scene.scenario === "collision_1d") {
+        const col = analysis.scene as Collision1DSceneSpec;
+        setAnalysisSuccess(
+          `Live analysis: 1D collision · Cart A: ${col.mass_a} kg (${col.velocity_a} m/s) · Cart B: ${col.mass_b} kg (${col.velocity_b} m/s)`
+        );
+      } else if (analysis.scene.scenario === "generative") {
+        const gen = analysis.scene as GenerativeSceneSpec;
+        setAnalysisSuccess(
+          `Live analysis: ${gen.title} · ${gen.primary_law}`
         );
       } else {
         const inc = analysis.scene as InclineSceneSpec;
@@ -332,6 +343,59 @@ export default function App() {
     }
   };
 
+  const handleSelectCadMode = (mode: CadPreviewMode) => {
+    setVerdict(null);
+    if (mode === "incline") {
+      setScene({
+        scenario: "incline",
+        mass: scene.scenario === "incline" ? scene.mass : 1.0,
+        angle_deg: scene.scenario === "incline" ? scene.angle_deg : 30,
+        gravity: scene.gravity ?? 9.81,
+        friction: scene.scenario === "incline" ? scene.friction : 0.12,
+        body: scene.scenario === "incline" ? scene.body : "block",
+        length: 3.2,
+        confidence: 1.0,
+        assumptions: [],
+      });
+    } else if (mode === "spring") {
+      setScene({
+        scenario: "spring",
+        mass: scene.scenario === "spring" ? scene.mass : 2.0,
+        spring_constant: scene.scenario === "spring" ? scene.spring_constant : 120,
+        spring_count: scene.scenario === "spring" ? scene.spring_count : 2,
+        arrangement: scene.scenario === "spring" ? scene.arrangement : "series",
+        amplitude: 0.35,
+        gravity: scene.gravity ?? 9.81,
+        confidence: 1.0,
+        assumptions: [],
+      });
+    } else if (mode === "collision_1d") {
+      setScene({
+        scenario: "collision_1d",
+        mass_a: scene.scenario === "collision_1d" ? scene.mass_a : 2.0,
+        mass_b: scene.scenario === "collision_1d" ? scene.mass_b : 1.0,
+        velocity_a: scene.scenario === "collision_1d" ? scene.velocity_a : 10.0,
+        velocity_b: scene.scenario === "collision_1d" ? scene.velocity_b : 5.0,
+        restitution: scene.scenario === "collision_1d" ? scene.restitution : 1.0,
+        gravity: scene.gravity ?? 9.81,
+        confidence: 1.0,
+        assumptions: [],
+      });
+    } else if (mode === "projectile") {
+      setScene({
+        scenario: "incline",
+        mass: 1.0,
+        angle_deg: 45,
+        gravity: scene.gravity ?? 9.81,
+        friction: 0.0,
+        body: "ball",
+        length: 3.2,
+        confidence: 1.0,
+        assumptions: [],
+      });
+    }
+  };
+
   const resetScene = () => {
     setScene(initialScene);
     setSceneSource("demo");
@@ -410,7 +474,13 @@ export default function App() {
             <div>
               <p className="eyebrow">02 / EXPERIMENT</p>
               <h2 id="simulation-title">
-                {scene.scenario === "spring" ? "Vertical spring oscillator" : "Inclined plane"}
+                {scene.scenario === "spring"
+                  ? "Vertical spring oscillator"
+                  : scene.scenario === "collision_1d"
+                  ? "1D Linear Momentum Collision"
+                  : scene.scenario === "generative"
+                  ? (scene as GenerativeSceneSpec).title || "Generative Physics Apparatus"
+                  : "Inclined plane"}
               </h2>
             </div>
             <div className="simulation-actions">
@@ -429,6 +499,7 @@ export default function App() {
             scene={scene}
             isPlaying={isPlaying}
             onChangeBody={changeBody}
+            onSelectCadMode={handleSelectCadMode}
           />
           <Controls
             scene={scene}

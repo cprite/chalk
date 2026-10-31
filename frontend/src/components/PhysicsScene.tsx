@@ -29,12 +29,13 @@ import {
   getSceneMass,
 } from "../types";
 
-type CadPreviewMode = "incline" | "projectile" | "cloud_chamber" | "spring" | "generative" | "collision_1d";
+export type CadPreviewMode = "incline" | "projectile" | "cloud_chamber" | "spring" | "generative" | "collision_1d";
 
 type PhysicsSceneProps = {
   scene: SceneSpec;
   isPlaying: boolean;
   onChangeBody?: (body: "ball" | "block") => void;
+  onSelectCadMode?: (mode: CadPreviewMode) => void;
 };
 
 /**
@@ -49,7 +50,7 @@ type PhysicsSceneProps = {
  * - Supports 4-Way Pepper's Ghost Hologram Projection Mode (`gl.setViewport` / `gl.setScissor`).
  * - Position over time from the formula. The check itself runs in rapierMeasure.ts.
  */
-export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: PhysicsSceneProps) {
+export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody, onSelectCadMode }: PhysicsSceneProps) {
   // Each CAD branch below reads only the fields of its own scenario.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const scene = sceneSpec as any;
@@ -77,6 +78,11 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
     potentialEnergy: 0.0,
     totalEnergy: 0.0,
   });
+
+  const handleSwitchCad = (mode: CadPreviewMode) => {
+    setCadMode(mode);
+    onSelectCadMode?.(mode);
+  };
 
   useEffect(() => {
     if (scene.scenario === "spring") {
@@ -811,7 +817,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
         <div style={{ display: "flex", flexWrap: "wrap", gap: "5px", alignItems: "center" }}>
           <button
             type="button"
-            onClick={() => setCadMode("incline")}
+            onClick={() => handleSwitchCad("incline")}
             style={{
               padding: "3px 7px",
               border: "1px solid #496e60",
@@ -839,7 +845,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
           ) : null}
           <button
             type="button"
-            onClick={() => setCadMode("projectile")}
+            onClick={() => handleSwitchCad("projectile")}
             style={{
               padding: "3px 7px",
               border: "1px solid #496e60",
@@ -852,7 +858,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
           </button>
           <button
             type="button"
-            onClick={() => setCadMode("cloud_chamber")}
+            onClick={() => handleSwitchCad("cloud_chamber")}
             style={{
               padding: "3px 7px",
               border: "1px solid #496e60",
@@ -865,7 +871,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
           </button>
           <button
             type="button"
-            onClick={() => setCadMode("spring")}
+            onClick={() => handleSwitchCad("spring")}
             style={{
               padding: "3px 7px",
               border: "1px solid #496e60",
@@ -878,7 +884,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
           </button>
           <button
             type="button"
-            onClick={() => setCadMode("collision_1d")}
+            onClick={() => handleSwitchCad("collision_1d")}
             style={{
               padding: "3px 7px",
               border: "1px solid #496e60",
