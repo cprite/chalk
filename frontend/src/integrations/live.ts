@@ -158,13 +158,31 @@ export function parseVoiceIntent(
     };
   }
 
-  // 12. Spring system / Hooke's Law
+  // 12. Generative Vertical Spring Assembly / Hooke's Law
   if (p.includes("spring") || p.includes("hooke") || p.includes("oscillator")) {
-    return {
-      explanation: `Configured Hooke's Law Spring-Mass System (F = -kx). Mass is ${baseScene.mass} kg. Notice that doubling the mass decreases the oscillation frequency by 1/√2!`,
-      updates: {},
-      shouldPlay: true,
-    };
+    let count = 2;
+    if (p.includes("3") || p.includes("three")) count = 3;
+    else if (p.includes("4") || p.includes("four")) count = 4;
+    else if (p.includes("5") || p.includes("five")) count = 5;
+    else if (p.includes("1") || p.includes("one") || p.includes("single")) count = 1;
+
+    const isSeries = p.includes("series") || p.includes("chain") || p.includes("end to end");
+    const kBase = 40.0;
+    const kEff = isSeries ? kBase / count : count * kBase;
+
+    if (isSeries) {
+      return {
+        explanation: `Configured Generative CAD: ${count} vertical springs chained in SERIES. Effective stiffness drops to k_eff = k/${count} = ${kEff.toFixed(1)} N/m. The chain is softer, creating a longer oscillation period T = 2π√(m/k_eff)!`,
+        updates: {},
+        shouldPlay: true,
+      };
+    } else {
+      return {
+        explanation: `Configured Generative CAD: ${count} vertical springs connected in PARALLEL. Springs share the load, multiplying effective stiffness to k_eff = ${count}·k = ${kEff.toFixed(1)} N/m. Oscillation frequency increases by √${count}!`,
+        updates: {},
+        shouldPlay: true,
+      };
+    }
   }
 
   // 12. Simulation controls
