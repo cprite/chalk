@@ -74,13 +74,58 @@ export type CloudChamberSceneSpec = {
   assumptions: string[];
 };
 
+export type GenerativeObjectSpec = {
+  id: string;
+  type: "block" | "sphere" | "spring" | "string" | "anchor" | "pulley" | "ramp" | "cart" | "pivot" | string;
+  label?: string;
+  mass?: number;
+  k?: number;
+  position?: [number, number, number];
+  connects?: string[];
+  is_fixed?: boolean;
+};
+
+export type GenerativeSceneSpec = {
+  scenario: "generative";
+  title: string;
+  primary_law: string;
+  formula: string;
+  mass: number;
+  objects: GenerativeObjectSpec[];
+  gravity: number;
+  confidence: number;
+  assumptions: string[];
+};
+
 export type SceneSpec =
   | InclineSceneSpec
   | SpringSceneSpec
   | ProjectileSceneSpec
   | PendulumSceneSpec
   | Collision1DSceneSpec
-  | CloudChamberSceneSpec;
+  | CloudChamberSceneSpec
+  | GenerativeSceneSpec;
+
+export function getSceneMass(s: SceneSpec): number {
+  if ("mass" in s && typeof s.mass === "number") return s.mass;
+  if ("mass_a" in s && typeof s.mass_a === "number") return s.mass_a;
+  return 1.0;
+}
+
+export function getSceneAngle(s: SceneSpec): number {
+  if ("angle_deg" in s && typeof s.angle_deg === "number") return s.angle_deg;
+  return 30;
+}
+
+export function getSceneLength(s: SceneSpec): number {
+  if ("length" in s && typeof s.length === "number") return s.length;
+  return 4.0;
+}
+
+export function getSceneBody(s: SceneSpec): "ball" | "block" {
+  if ("body" in s && (s.body === "ball" || s.body === "block")) return s.body;
+  return "block";
+}
 
 export type TrajectoryPoint = {
   t: number;

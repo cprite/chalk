@@ -7,7 +7,9 @@
     {"$ref": "#/$defs/incline"},
     {"$ref": "#/$defs/projectile"},
     {"$ref": "#/$defs/pendulum"},
-    {"$ref": "#/$defs/collision_1d"}
+    {"$ref": "#/$defs/collision_1d"},
+    {"$ref": "#/$defs/spring"},
+    {"$ref": "#/$defs/generative"}
   ],
   "$defs": {
     "common": {
@@ -62,6 +64,48 @@
         "velocity_a": {"type": "number", "minimum": -100, "maximum": 100},
         "velocity_b": {"type": "number", "minimum": -100, "maximum": 100},
         "restitution": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "spring": {
+      "allOf": [{"$ref": "#/$defs/common"}],
+      "required": ["scenario", "mass", "spring_constant"],
+      "properties": {
+        "scenario": {"const": "spring"},
+        "mass": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000},
+        "spring_constant": {"type": "number", "exclusiveMinimum": 0, "maximum": 50000},
+        "spring_count": {"type": "integer", "minimum": 1, "maximum": 20},
+        "arrangement": {"enum": ["series", "parallel", "single"]},
+        "amplitude": {"type": "number", "minimum": 0, "maximum": 10},
+        "k1": {"type": "number", "minimum": 0, "maximum": 50000},
+        "k2": {"type": "number", "minimum": 0, "maximum": 50000}
+      }
+    },
+    "generative": {
+      "allOf": [{"$ref": "#/$defs/common"}],
+      "required": ["scenario", "title", "primary_law"],
+      "properties": {
+        "scenario": {"const": "generative"},
+        "title": {"type": "string", "maxLength": 150},
+        "primary_law": {"type": "string", "maxLength": 150},
+        "formula": {"type": "string", "maxLength": 200},
+        "mass": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000},
+        "objects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "type"],
+            "properties": {
+              "id": {"type": "string"},
+              "type": {"type": "string"},
+              "label": {"type": "string"},
+              "mass": {"type": "number"},
+              "k": {"type": "number"},
+              "position": {"type": "array", "items": {"type": "number"}},
+              "connects": {"type": "array", "items": {"type": "string"}},
+              "is_fixed": {"type": "boolean"}
+            }
+          }
+        }
       }
     }
   }

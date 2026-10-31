@@ -109,6 +109,44 @@ def spring(scene: Any) -> Expected:
     )
 
 
+def generative_solve(scene: Any) -> Expected:
+    m = float(getattr(scene, "mass", 1.0))
+    formula = getattr(scene, "formula", "")
+    primary_law = getattr(scene, "primary_law", "Newtonian Mechanics")
+    g = float(getattr(scene, "gravity", 9.81))
+
+    objects = getattr(scene, "objects", [])
+    spring_objs = [
+        obj for obj in objects
+        if getattr(obj, "type", "") == "spring" or (isinstance(obj, dict) and obj.get("type") == "spring")
+    ]
+    if spring_objs:
+        k_values = [
+            float(getattr(obj, "k", 100.0) or (obj.get("k", 100.0) if isinstance(obj, dict) else 100.0))
+            for obj in spring_objs
+        ]
+        k_values = [k for k in k_values if k > 0]
+        if k_values:
+            k_eff = 1.0 / sum(1.0 / k for k in k_values) if len(k_values) > 1 else k_values[0]
+            omega = math.sqrt(k_eff / m)
+            T = 2.0 * math.pi / omega
+            return Expected(
+                moves=True,
+                acceleration=omega * omega * 0.35,
+                time_to_end_s=T,
+                regime="simple_harmonic_motion",
+                formula=f"T = 2*pi*sqrt(m/k_eff) = {T:.3f}s; k_eff = {k_eff:.1f} N/m",
+            )
+
+    return Expected(
+        moves=True,
+        acceleration=g,
+        time_to_end_s=1.0,
+        regime="generative_dynamic",
+        formula=formula or f"{primary_law}: F_net = m*a",
+    )
+
+
 def solve(scene: Any) -> Expected:
     """General solver dispatch."""
     scen = getattr(scene, "scenario", None)
@@ -116,4 +154,6 @@ def solve(scene: Any) -> Expected:
         return incline(scene)
     if scen == "spring":
         return spring(scene)
+    if scen == "generative":
+        return generative_solve(scene)
     raise Unsupported(f"Scenario '{scen}' is unsupported")

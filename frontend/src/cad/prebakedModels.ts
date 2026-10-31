@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { GenerativeObjectSpec } from "../types";
 
 /**
  * Shared pre-baked CAD materials palette ("Modern Chalkboard meets Precision Physics Lab").
@@ -671,4 +672,155 @@ export function buildForceVectorsGroup(
   }
 
   return vectors;
+}
+
+export interface GenerativeActor {
+  id: string;
+  type: string;
+  mesh: THREE.Object3D;
+  initialPos: THREE.Vector3;
+  mass: number;
+  isFixed: boolean;
+}
+
+export interface GenerativeApparatusAssembly {
+  root: THREE.Group;
+  actors: GenerativeActor[];
+  update: (elapsedSec: number, isPlaying: boolean) => void;
+}
+
+export function buildGenerativeApparatus(objects: GenerativeObjectSpec[]): GenerativeApparatusAssembly {
+  const root = new THREE.Group();
+  root.name = "Generative_Physics_Apparatus";
+
+  // Base Floor / Support Stage
+  const baseFloor = new THREE.Mesh(
+    new THREE.BoxGeometry(3.2, 0.1, 2.0),
+    CAD_MATERIALS.darkForestSteel
+  );
+  baseFloor.position.set(0, -0.05, 0);
+  root.add(baseFloor);
+
+  // Gantry frame posts if there are high fixed objects
+  const hasHighAnchor = objects.some((o) => (o.position?.[1] ?? 0) > 1.5 || o.is_fixed);
+  if (hasHighAnchor) {
+    for (const xSide of [-1.2, 1.2]) {
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.045, 0.045, 3.2, 18),
+        CAD_MATERIALS.anodizedAluminum
+      );
+      post.position.set(xSide, 1.55, 0);
+      root.add(post);
+    }
+    const topBar = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 0.09, 0.28),
+      CAD_MATERIALS.darkForestSteel
+    );
+    topBar.position.set(0, 3.15, 0);
+    root.add(topBar);
+  }
+
+  const actors: GenerativeActor[] = [];
+
+  for (const obj of objects) {
+    const pos = new THREE.Vector3(
+      obj.position?.[0] ?? 0,
+      obj.position?.[1] ?? 1.0,
+      obj.position?.[2] ?? 0
+    );
+    const mass = Math.max(0.1, obj.mass ?? 1.0);
+
+    let actorMesh: THREE.Object3D;
+
+    if (obj.type === "pulley") {
+      const pulleyGroup = new THREE.Group();
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.3, 0.3, 0.08, 28),
+        CAD_MATERIALS.turnedBrass
+      );
+      wheel.rotation.x = Math.PI / 2;
+      pulleyGroup.add(wheel);
+
+      const bracket = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.45, 0.12),
+        CAD_MATERIALS.darkForestSteel
+      );
+      bracket.position.y = 0.15;
+      pulleyGroup.add(bracket);
+      pulleyGroup.position.copy(pos);
+      root.add(pulleyGroup);
+      actorMesh = pulleyGroup;
+    } else if (obj.type === "sphere" || obj.type === "bob") {
+      const radius = 0.18 * Math.pow(mass, 0.25);
+      const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(radius, 24, 24),
+        CAD_MATERIALS.anodizedAluminum
+      );
+      sphere.position.copy(pos);
+      root.add(sphere);
+      actorMesh = sphere;
+    } else if (obj.type === "anchor") {
+      const anchorMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, 0.08, 0.3),
+        CAD_MATERIALS.darkForestSteel
+      );
+      anchorMesh.position.copy(pos);
+      root.add(anchorMesh);
+      actorMesh = anchorMesh;
+    } else if (obj.type === "string") {
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-0.5, 1.0, 0),
+        new THREE.Vector3(0, 3.0, 0),
+        new THREE.Vector3(0.5, 1.0, 0),
+      ]);
+      const stringLine = new THREE.Line(
+        lineGeo,
+        new THREE.LineBasicMaterial({ color: 0x314d3e, linewidth: 2 })
+      );
+      root.add(stringLine);
+      actorMesh = stringLine;
+    } else {
+      // Default: Laboratory Block
+      const size = 0.32 * Math.pow(mass, 0.28);
+      const blockGroup = new THREE.Group();
+      const blockMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(size, size, size),
+        CAD_MATERIALS.terracottaBody
+      );
+      blockGroup.add(blockMesh);
+
+      const hook = new THREE.Mesh(
+        new THREE.TorusGeometry(0.045, 0.012, 10, 20),
+        CAD_MATERIALS.turnedBrass
+      );
+      hook.position.y = size / 2 + 0.045;
+      blockGroup.add(hook);
+
+      blockGroup.position.copy(pos);
+      root.add(blockGroup);
+      actorMesh = blockGroup;
+    }
+
+    actors.push({
+      id: obj.id,
+      type: obj.type,
+      mesh: actorMesh,
+      initialPos: pos.clone(),
+      mass,
+      isFixed: !!obj.is_fixed,
+    });
+  }
+
+  const update = (elapsedSec: number, isPlaying: boolean) => {
+    if (!isPlaying) return;
+    for (const actor of actors) {
+      if (actor.isFixed) continue;
+      if (actor.mesh instanceof THREE.Group || actor.mesh instanceof THREE.Mesh) {
+        const yOffset = Math.sin(elapsedSec * 3.5) * 0.35 * (actor.id.includes("2") ? -1 : 1);
+        actor.mesh.position.y = Math.max(0.2, actor.initialPos.y + yOffset);
+      }
+    }
+  };
+
+  return { root, actors, update };
 }

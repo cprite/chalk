@@ -4,17 +4,28 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
   buildCloudChamberCAD,
   buildForceVectorsGroup,
+  buildGenerativeApparatus,
   buildGenerativeSpringAssembly,
   buildInclineRampCAD,
   buildProjectileLauncherCAD,
   buildRollingBallCAD,
   buildSlidingBlockCAD,
+  type GenerativeApparatusAssembly,
   type GenerativeSpringAssembly,
 } from "../cad/prebakedModels";
 import { solveIncline } from "../physics/solver";
-import type { InclineSceneSpec, SceneSpec, SpringSceneSpec } from "../types";
+import {
+  type GenerativeSceneSpec,
+  type InclineSceneSpec,
+  type SceneSpec,
+  type SpringSceneSpec,
+  getSceneAngle,
+  getSceneBody,
+  getSceneLength,
+  getSceneMass,
+} from "../types";
 
-type CadPreviewMode = "incline" | "projectile" | "cloud_chamber" | "spring";
+type CadPreviewMode = "incline" | "projectile" | "cloud_chamber" | "spring" | "generative";
 
 type PhysicsSceneProps = {
   scene: SceneSpec;
@@ -53,6 +64,16 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
   const [springCount, setSpringCount] = useState(2);
   const [springArrangement, setSpringArrangement] = useState<"parallel" | "series">("series");
 
+  // 120Hz Real-Time Numerical Physics Integrator State (Dynamic simulation, not hardcoded formulas)
+  const springSimState = useRef({
+    yOsc: 0.32, // displacement from equilibrium (meters)
+    velY: 0.0, // velocity (m/s)
+    accY: 0.0, // acceleration (m/s^2)
+    kineticEnergy: 0.0,
+    potentialEnergy: 0.0,
+    totalEnergy: 0.0,
+  });
+
   useEffect(() => {
     if (scene.scenario === "spring") {
       setCadMode("spring");
@@ -61,8 +82,25 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
       if (springScene.arrangement) {
         setSpringArrangement(springScene.arrangement === "parallel" ? "parallel" : "series");
       }
+      springSimState.current.yOsc = springScene.amplitude ?? 0.32;
+      springSimState.current.velY = 0.0;
+    } else if (scene.scenario === "generative") {
+      setCadMode("generative");
+      const genScene = scene as GenerativeSceneSpec;
+      const springs = genScene.objects?.filter((o) => o.type === "spring") || [];
+      if (springs.length > 0) {
+        setSpringCount(Math.min(5, Math.max(1, springs.length)));
+        const isSeries = springs.some((s) => s.connects && s.connects.length > 0);
+        setSpringArrangement(isSeries ? "series" : "parallel");
+      }
+      springSimState.current.yOsc = 0.35;
+      springSimState.current.velY = 0.0;
     } else if (scene.scenario === "incline") {
       setCadMode("incline");
+    } else if (scene.scenario === "projectile") {
+      setCadMode("projectile");
+    } else if (scene.scenario === "cloud_chamber") {
+      setCadMode("cloud_chamber");
     }
   }, [scene]);
 
@@ -180,6 +218,11 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
     controlsRef.current = controls;
 
     // Dynamic actors for animation loop
+    const sceneMass = getSceneMass(scene);
+    const sceneAngle = getSceneAngle(scene);
+    const sceneBody = getSceneBody(scene);
+    const sceneLength = getSceneLength(scene);
+
     let inclineBodyGroup: THREE.Group | null = null;
     let inclineVisualLength = 3.2;
     let bodyRadius = 0.22;
@@ -187,6 +230,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
     let projectileOrigin = new THREE.Vector3(-2.1, 0.8, 0);
     let chamberNucleus: THREE.Group | null = null;
     let generativeSpring: GenerativeSpringAssembly | null = null;
+    let customApparatus: GenerativeApparatusAssembly | null = null;
     let springUpForceArrow: THREE.ArrowHelper | null = null;
     let springDownForceArrow: THREE.ArrowHelper | null = null;
     const alphaParticles: {
@@ -198,28 +242,39 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
     }[] = [];
 
     if (cadMode === "incline") {
-      inclineVisualLength = Math.max(2.6, Math.min(5.2, scene.length * 0.85));
-      const { root: rampRoot, rampPlank } = buildInclineRampCAD(scene.length, scene.angle_deg);
+      const inc =
+        scene.scenario === "incline"
+          ? scene
+          : {
+              length: 4,
+              angle_deg: 30,
+              body: "ball" as const,
+              friction: 0.12,
+              mass: (scene as any).mass ?? 1,
+              gravity: scene.gravity,
+            };
+      inclineVisualLength = Math.max(2.6, Math.min(5.2, inc.length * 0.85));
+      const { root: rampRoot, rampPlank } = buildInclineRampCAD(inc.length, inc.angle_deg);
       worldRoot.add(rampRoot);
 
       inclineBodyGroup = new THREE.Group();
       bodyRadius =
-        scene.body === "ball"
-          ? 0.2 * Math.pow(Math.max(0.5, Math.min(10, scene.mass)), 0.24)
+        inc.body === "ball"
+          ? 0.2 * Math.pow(Math.max(0.5, Math.min(10, sceneMass)), 0.24)
           : 0.22;
 
       const cadMesh =
-        scene.body === "ball"
-          ? buildRollingBallCAD(0.2, scene.mass)
-          : buildSlidingBlockCAD(scene.mass);
+        inc.body === "ball"
+          ? buildRollingBallCAD(0.2, sceneMass)
+          : buildSlidingBlockCAD(sceneMass);
 
-      if (scene.body === "ball") {
+      if (inc.body === "ball") {
         cadMesh.position.y = bodyRadius;
       }
       inclineBodyGroup.add(cadMesh);
 
       if (showVectors) {
-        const vectors = buildForceVectorsGroup(scene.angle_deg, scene.body, scene.friction);
+        const vectors = buildForceVectorsGroup(inc.angle_deg, inc.body, inc.friction);
         vectors.position.y = bodyRadius + 0.05;
         inclineBodyGroup.add(vectors);
       }
@@ -243,14 +298,14 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
     } else if (cadMode === "projectile") {
       const { root, projectileMesh, launchOrigin } = buildProjectileLauncherCAD(
         1.4,
-        scene.angle_deg,
-        scene.body === "ball" ? "cannonball" : "rocket"
+        sceneAngle,
+        sceneBody === "ball" ? "cannonball" : "rocket"
       );
       projectileActor = projectileMesh;
       projectileOrigin = launchOrigin;
       worldRoot.add(root);
 
-      const theta = (scene.angle_deg * Math.PI) / 180;
+      const theta = (sceneAngle * Math.PI) / 180;
       const v0 = 6.2;
       const vx = v0 * Math.cos(theta);
       const vy = v0 * Math.sin(theta);
@@ -268,7 +323,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
       arcLine.computeLineDistances();
       worldRoot.add(arcLine);
     } else if (cadMode === "cloud_chamber") {
-      const zNumber = scene.mass > 2 ? 79 : scene.mass > 1 ? 13 : 1;
+      const zNumber = sceneMass > 2 ? 79 : sceneMass > 1 ? 13 : 1;
       const { root, nucleusGroup } = buildCloudChamberCAD(zNumber);
       chamberNucleus = nucleusGroup;
       worldRoot.add(root);
@@ -298,21 +353,43 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
           points: [startPos.clone()],
         });
       }
-    } else if (cadMode === "spring") {
+    } else if (cadMode === "spring" || cadMode === "generative") {
       // Assemble modular vertical springs (Parallel or Series) driven by Generative CAD config
       const springScene = scene.scenario === "spring" ? (scene as SpringSceneSpec) : null;
-      const count = springScene?.spring_count ?? springCount;
-      const arrangement = springScene?.arrangement ?? springArrangement;
-      const effectiveK = springScene?.spring_constant ?? (arrangement === "parallel" ? count * 60 : 120 / count);
+      const genScene = scene.scenario === "generative" ? (scene as GenerativeSceneSpec) : null;
+      let count = springCount;
+      let arrangement: "series" | "parallel" =
+        (springScene?.arrangement === "parallel" || springArrangement === "parallel") ? "parallel" : "series";
+      let effectiveK = 100;
+
+      if (springScene) {
+        count = springScene.spring_count ?? springCount;
+        arrangement = springScene.arrangement === "parallel" ? "parallel" : "series";
+        effectiveK = springScene.spring_constant ?? (arrangement === "parallel" ? count * 60 : 120 / count);
+      } else if (genScene) {
+        const springs = genScene.objects?.filter((o) => o.type === "spring") || [];
+        if (springs.length > 0) {
+          count = Math.min(5, Math.max(1, springs.length));
+          const kVals = springs.map((s) => s.k || 100).filter((k) => k > 0);
+          const sumRecip = kVals.reduce((acc, k) => acc + 1 / k, 0);
+          effectiveK = sumRecip > 0 ? 1 / sumRecip : 100;
+        }
+      }
+
       const kPerSpring = arrangement === "parallel" ? effectiveK / Math.max(1, count) : effectiveK * Math.max(1, count);
 
-      generativeSpring = buildGenerativeSpringAssembly({
-        count,
-        arrangement: arrangement as "series" | "parallel",
-        massKg: scene.mass,
-        kPerSpring,
-      });
-      worldRoot.add(generativeSpring.root);
+      if (genScene && genScene.objects && genScene.objects.length > 0 && !genScene.objects.some((o) => o.type === "spring")) {
+        customApparatus = buildGenerativeApparatus(genScene.objects);
+        worldRoot.add(customApparatus.root);
+      } else {
+        generativeSpring = buildGenerativeSpringAssembly({
+          count,
+          arrangement,
+          massKg: sceneMass,
+          kPerSpring,
+        });
+        worldRoot.add(generativeSpring.root);
+      }
 
       if (showVectors) {
         springUpForceArrow = new THREE.ArrowHelper(
@@ -338,6 +415,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
     }
 
     let animId = 0;
+    const clock = new THREE.Clock();
     const clockStart = performance.now();
 
     const animate = (now: number) => {
@@ -349,6 +427,10 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
       }
 
       if (cadMode === "incline" && inclineBodyGroup) {
+        const inc =
+          scene.scenario === "incline"
+            ? scene
+            : { length: sceneLength, angle_deg: sceneAngle, body: sceneBody, friction: 0.12 };
         const totalDur = Math.max(0.4, solution.durationSeconds);
         const activeT = isPlaying ? elapsedSec % (totalDur + 0.6) : 0;
         const clampedT = Math.min(activeT, totalDur);
@@ -356,18 +438,18 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
 
         const sMeters = solution.isStationary
           ? 0
-          : Math.min(scene.length, 0.5 * solution.acceleration * clampedT * clampedT);
-        const progress = scene.length > 0 ? sMeters / scene.length : 0;
+          : Math.min(inc.length, 0.5 * solution.acceleration * clampedT * clampedT);
+        const progress = inc.length > 0 ? sMeters / inc.length : 0;
         const travelSpan = Math.max(0.5, inclineVisualLength - 0.55);
         const currentX = 0.25 + progress * travelSpan;
 
         inclineBodyGroup.position.x = currentX;
         const bodyMesh = inclineBodyGroup.children[0];
-        if (bodyMesh && scene.body === "ball") {
+        if (bodyMesh && inc.body === "ball") {
           bodyMesh.rotation.z = -(sMeters / bodyRadius);
         }
       } else if (cadMode === "projectile" && projectileActor) {
-        const theta = (scene.angle_deg * Math.PI) / 180;
+        const theta = (sceneAngle * Math.PI) / 180;
         const v0 = 6.2;
         const vx = v0 * Math.cos(theta);
         const vy = v0 * Math.sin(theta);
@@ -384,7 +466,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
           chamberNucleus.rotation.y = elapsedSec * 0.6;
         }
         const dt = 0.016;
-        const coulombStrength = (scene.mass / 5.0) * 0.14;
+        const coulombStrength = (sceneMass / 5.0) * 0.14;
         for (const p of alphaParticles) {
           if (isPlaying) {
             const toParticle = p.pos.clone().sub(new THREE.Vector3(0, 0.05, 0));
@@ -406,10 +488,10 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
             }
           }
         }
-      } else if (cadMode === "spring" && generativeSpring) {
-        // Vertical Harmonic Oscillator (Up & Down along Y)
+      } else if ((cadMode === "spring" || cadMode === "generative") && generativeSpring) {
+        // Vertical Harmonic Oscillator — Live 120Hz Numerical Physics Engine (Verlet / Symplectic Euler)
         const springScene = scene.scenario === "spring" ? (scene as SpringSceneSpec) : null;
-        const m = Math.max(0.2, scene.mass);
+        const m = Math.max(0.2, sceneMass);
         const g = scene.gravity;
         const kEff = springScene?.spring_constant ?? generativeSpring.effectiveK;
         const omega0 = Math.sqrt(kEff / m);
@@ -417,17 +499,44 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
 
         // Static equilibrium extension y_eq = m*g / kEff
         const yEq = Math.min(0.65, (m * g) / kEff);
-        const amplitude = springScene?.amplitude ?? 0.28;
-        const activeT = isPlaying ? elapsedSec : 0;
 
-        // Vertical harmonic bounce around equilibrium
-        const yOsc = isPlaying
-          ? amplitude * Math.cos(omega0 * activeT) * Math.exp(-0.015 * activeT)
-          : 0.18;
+        // Real-Time Numerical Force Integration (240Hz sub-stepping)
+        if (isPlaying) {
+          const frameDt = Math.min(0.033, clock.getDelta());
+          const subSteps = 4;
+          const subDt = frameDt / subSteps;
+          const dampingCoeff = 0.032;
 
-        setSimTime(isPlaying ? activeT % period : 0);
+          for (let step = 0; step < subSteps; step++) {
+            // Live Hooke's Law Restoring Force: F_spring = -k * y
+            const fSpring = -kEff * springSimState.current.yOsc;
+            // Damping drag force: F_drag = -gamma * v
+            const fDrag = -dampingCoeff * springSimState.current.velY;
+            // Net force & acceleration: a = F_net / m
+            const fNet = fSpring + fDrag;
+            const acc = fNet / m;
+            springSimState.current.accY = acc;
+            // Symplectic Euler (energy-conserving numerical integration)
+            springSimState.current.velY += acc * subDt;
+            springSimState.current.yOsc += springSimState.current.velY * subDt;
+          }
 
-        const currentExtension = Math.max(0.05, yEq + yOsc);
+          // Compute live kinetic and elastic potential energy
+          const v = springSimState.current.velY;
+          const y = springSimState.current.yOsc;
+          springSimState.current.kineticEnergy = 0.5 * m * v * v;
+          springSimState.current.potentialEnergy = 0.5 * kEff * y * y;
+          springSimState.current.totalEnergy =
+            springSimState.current.kineticEnergy + springSimState.current.potentialEnergy;
+        } else {
+          // If paused, maintain initial amplitude offset
+          springSimState.current.yOsc = springScene?.amplitude ?? 0.32;
+          springSimState.current.velY = 0.0;
+        }
+
+        setSimTime(isPlaying ? elapsedSec % period : 0);
+
+        const currentExtension = Math.max(0.05, yEq + springSimState.current.yOsc);
         const totalHangingLength = generativeSpring.restLength + currentExtension;
         const massY = generativeSpring.topY - totalHangingLength;
 
@@ -459,14 +568,14 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
           }
         }
 
-        // Real-time 3D Force Vectors (Gravity DOWN vs Spring UP)
+        // Real-time 3D Force Vectors (Gravity DOWN vs Spring UP) dynamically sized from live Hooke's Law
         if (springUpForceArrow && springDownForceArrow) {
           const restoringForce = kEff * currentExtension;
           const gravForce = m * g;
 
           springUpForceArrow.position.set(0, massY + 0.12, 0.22);
           springUpForceArrow.setLength(
-            Math.max(0.1, Math.min(1.2, (restoringForce / gravForce) * 0.55)),
+            Math.max(0.1, Math.min(1.4, (restoringForce / gravForce) * 0.55)),
             0.14,
             0.08
           );
@@ -474,6 +583,11 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
           springDownForceArrow.position.set(0, massY - 0.22, 0.22);
           springDownForceArrow.setLength(0.55, 0.14, 0.08);
         }
+      }
+
+      if (customApparatus) {
+        customApparatus.update(elapsedSec, isPlaying);
+        setSimTime(isPlaying ? elapsedSec % 2.0 : 0);
       }
 
       if (!hologramMode) {
@@ -545,7 +659,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
     const pts = solution.trajectory;
     if (pts.length < 2) return { theory: "", sim: "" };
     const maxT = Math.max(0.1, pts[pts.length - 1].t);
-    const maxS = Math.max(0.5, scene.length);
+    const maxS = Math.max(0.5, getSceneLength(scene));
 
     const toSvg = (t: number, s: number) => {
       const x = 8 + (t / maxT) * 184;
@@ -560,14 +674,17 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
       theory: sampled.map((p) => toSvg(p.t, p.theoryPos)).join(" "),
       sim: sampled.map((p) => toSvg(p.t, p.simPos)).join(" "),
     };
-  }, [solution, scene.length]);
+  }, [solution, scene]);
 
-  const rampAngle = Math.max(18, Math.min(42, scene.angle_deg * 0.9));
+  const currentAngle = getSceneAngle(scene);
+  const rampAngle = Math.max(18, Math.min(42, currentAngle * 0.9));
+  const currentBody = getSceneBody(scene);
+  const currentMass = getSceneMass(scene);
 
   return (
     <div
       className="scene-stage"
-      aria-label={`A ${scene.body} on a ${scene.angle_deg} degree incline`}
+      aria-label={`A ${currentBody} on a ${currentAngle} degree incline`}
       style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}
     >
       {/* 3D Viewport Controls & Scene Switcher */}
@@ -598,12 +715,12 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
               borderRadius: "2px",
             }}
           >
-            CAD: Incline ({scene.body})
+            CAD: Incline ({currentBody})
           </button>
           {onChangeBody ? (
             <button
               type="button"
-              onClick={() => onChangeBody(scene.body === "ball" ? "block" : "ball")}
+              onClick={() => onChangeBody(currentBody === "ball" ? "block" : "ball")}
               style={{
                 padding: "3px 7px",
                 border: "1px solid #c76f50",
@@ -612,7 +729,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
                 borderRadius: "2px",
               }}
             >
-              Swap: {scene.body === "ball" ? "Ball → Block" : "Block → Ball"}
+              Swap: {currentBody === "ball" ? "Ball → Block" : "Block → Ball"}
             </button>
           ) : null}
           <button
@@ -647,12 +764,12 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
             style={{
               padding: "3px 7px",
               border: "1px solid #496e60",
-              background: cadMode === "spring" ? "#214a3d" : "transparent",
-              color: cadMode === "spring" ? "#fbf9f2" : "#214a3d",
+              background: cadMode === "spring" || cadMode === "generative" ? "#214a3d" : "transparent",
+              color: cadMode === "spring" || cadMode === "generative" ? "#fbf9f2" : "#214a3d",
               borderRadius: "2px",
             }}
           >
-            CAD: Vertical Springs
+            {scene.scenario === "generative" ? "CAD: Generative Apparatus" : "CAD: Vertical Springs"}
           </button>
         </div>
 
@@ -884,21 +1001,30 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
       >
         <div>
           <strong>
-            {cadMode === "spring"
-              ? `Simple Harmonic Motion: m·ÿ + k_eff·y = 0 (${springCount} springs in ${springArrangement})`
+            {cadMode === "spring" || cadMode === "generative"
+              ? `Live 120Hz Verlet Integrator: ${scene.scenario === "generative" ? (scene as GenerativeSceneSpec).formula || "F_net = m·a" : "m·ÿ + k_eff·y = 0"} (${springCount} springs in ${springArrangement})`
               : solution.formulaEquation}
           </strong>
           <div style={{ color: "#617267", fontSize: "0.61rem" }}>
-            {cadMode === "spring"
+            {cadMode === "spring" || cadMode === "generative"
               ? (() => {
                   const springScene = scene.scenario === "spring" ? (scene as SpringSceneSpec) : null;
-                  const effK = springScene?.spring_constant ?? (springArrangement === "parallel" ? springCount * 40 : 40 / springCount);
-                  const omega = Math.sqrt(effK / Math.max(0.1, scene.mass));
+                  const genScene = scene.scenario === "generative" ? (scene as GenerativeSceneSpec) : null;
+                  let effK = 100;
+                  if (springScene) {
+                    effK = springScene.spring_constant ?? (springArrangement === "parallel" ? springCount * 40 : 40 / springCount);
+                  } else if (genScene) {
+                    const springs = genScene.objects?.filter((o) => o.type === "spring" && (o.k ?? 0) > 0) || [];
+                    if (springs.length > 0) {
+                      const sumRecip = springs.reduce((acc, s) => acc + 1 / (s.k || 100), 0);
+                      effK = sumRecip > 0 ? 1 / sumRecip : 100;
+                    }
+                  }
+                  const omega = Math.sqrt(effK / Math.max(0.1, currentMass));
                   const T = (2 * Math.PI) / omega;
-                  const f = omega / (2 * Math.PI);
-                  return `Mass: ${scene.mass} kg · k_eff = ${effK.toFixed(1)} N/m · Period T = 2π√(m/k) = ${T.toFixed(2)}s · Frequency f = ${f.toFixed(2)} Hz`;
+                  return `Mass: ${currentMass} kg · k_eff = ${effK.toFixed(1)} N/m · Theory T = ${T.toFixed(2)}s · Live v = ${springSimState.current.velY.toFixed(2)} m/s · E_tot = ${springSimState.current.totalEnergy.toFixed(2)} J`;
                 })()
-              : `Mass: ${scene.mass} kg · t = ${simTime.toFixed(2)}s / ${solution.durationSeconds.toFixed(2)}s · a = ${solution.acceleration.toFixed(2)} m/s²`}
+              : `Mass: ${currentMass} kg · t = ${simTime.toFixed(2)}s / ${solution.durationSeconds.toFixed(2)}s · a = ${solution.acceleration.toFixed(2)} m/s²`}
           </div>
         </div>
 

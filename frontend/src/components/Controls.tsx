@@ -1,4 +1,4 @@
-import type { InclineSceneSpec, SceneSpec, SpringSceneSpec } from "../types";
+import type { GenerativeSceneSpec, InclineSceneSpec, SceneSpec, SpringSceneSpec } from "../types";
 
 type ControlsProps = {
   scene: SceneSpec;
@@ -10,8 +10,10 @@ type ControlsProps = {
 
 export function Controls({ scene, isPlaying, onChange, onTogglePlay, onReset }: ControlsProps) {
   const isSpring = scene.scenario === "spring";
+  const isGenerative = scene.scenario === "generative";
   const springScene = isSpring ? (scene as SpringSceneSpec) : null;
-  const inclineScene = !isSpring ? (scene as InclineSceneSpec) : null;
+  const genScene = isGenerative ? (scene as GenerativeSceneSpec) : null;
+  const inclineScene = scene.scenario === "incline" ? (scene as InclineSceneSpec) : null;
 
   return (
     <section className="controls" aria-label="Simulation controls">
@@ -106,6 +108,38 @@ export function Controls({ scene, isPlaying, onChange, onTogglePlay, onReset }: 
               />
               <output>
                 {springScene.gravity.toFixed(1)} <small>m/s²</small>
+              </output>
+            </label>
+          </>
+        ) : isGenerative && genScene ? (
+          <>
+            <label className="control-row">
+              <span>Mass</span>
+              <input
+                type="range"
+                min={0.5}
+                max={50}
+                step={0.5}
+                value={genScene.mass}
+                onChange={(event) => onChange("mass", Number(event.target.value))}
+              />
+              <output>
+                {genScene.mass} <small>kg</small>
+              </output>
+            </label>
+
+            <label className="control-row">
+              <span>Gravity</span>
+              <input
+                type="range"
+                min={1}
+                max={25}
+                step={0.1}
+                value={genScene.gravity}
+                onChange={(event) => onChange("gravity", Number(event.target.value))}
+              />
+              <output>
+                {genScene.gravity.toFixed(1)} <small>m/s²</small>
               </output>
             </label>
           </>

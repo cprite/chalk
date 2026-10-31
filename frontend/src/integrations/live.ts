@@ -72,32 +72,37 @@ export function parseVoiceIntent(
     };
   }
 
+  const currentMass = (baseScene as any).mass ?? 1;
+  const currentAngle = (baseScene as any).angle_deg ?? 30;
+  const currentBody = (baseScene as any).body ?? "block";
+  const currentFriction = (baseScene as any).friction ?? 0.12;
+
   // 1. Double mass ("double the mass", "make it twice as heavy", "double ball weight")
   if (
     p.includes("double") &&
     (p.includes("mass") || p.includes("weight") || p.includes("ball") || p.includes("heavy") || p.includes("block"))
   ) {
-    const newMass = Number((baseScene.mass * 2).toFixed(1));
+    const newMass = Number((currentMass * 2).toFixed(1));
     return {
       explanation: isSpring
         ? `Doubled mass to ${newMass} kg. Under T = 2π√(m/k), heavier bob oscillates √2 times slower!`
-        : `Doubled the mass from ${baseScene.mass} kg to ${newMass} kg. In ideal rolling without slipping, acceleration a = (5/7) g sin(θ) is independent of mass!`,
+        : `Doubled the mass from ${currentMass} kg to ${newMass} kg. In ideal rolling without slipping, acceleration a = (5/7) g sin(θ) is independent of mass!`,
       updates: { mass: newMass },
     };
   }
 
   // 2. Triple mass
   if (p.includes("triple") && (p.includes("mass") || p.includes("weight"))) {
-    const newMass = Number((baseScene.mass * 3).toFixed(1));
+    const newMass = Number((currentMass * 3).toFixed(1));
     return {
-      explanation: `Tripled the mass from ${baseScene.mass} kg to ${newMass} kg. Noticeably heavier bob/block.`,
+      explanation: `Tripled the mass from ${currentMass} kg to ${newMass} kg. Noticeably heavier bob/block.`,
       updates: { mass: newMass },
     };
   }
 
   // 3. Halve mass ("half the mass", "cut mass in half")
   if ((p.includes("half") || p.includes("halve")) && (p.includes("mass") || p.includes("weight"))) {
-    const newMass = Math.max(0.5, Number((baseScene.mass / 2).toFixed(1)));
+    const newMass = Math.max(0.5, Number((currentMass / 2).toFixed(1)));
     return {
       explanation: `Halved the mass to ${newMass} kg.`,
       updates: { mass: newMass },
@@ -109,10 +114,9 @@ export function parseVoiceIntent(
     p.includes("steeper") ||
     (p.includes("increase") && (p.includes("angle") || p.includes("ramp") || p.includes("slope")))
   ) {
-    const curAngle = inclineScene?.angle_deg ?? 30;
-    const newAngle = Math.min(75, curAngle + 15);
+    const newAngle = Math.min(75, currentAngle + 15);
     return {
-      explanation: `A steeper ramp increases the component of gravity along the plane. Set angle from ${curAngle}° to ${newAngle}°.`,
+      explanation: `A steeper ramp increases the component of gravity along the plane. Set angle from ${currentAngle}° to ${newAngle}°.`,
       updates: { angle_deg: newAngle } as any,
     };
   }
@@ -123,10 +127,10 @@ export function parseVoiceIntent(
     p.includes("flatter") ||
     (p.includes("decrease") && (p.includes("angle") || p.includes("ramp") || p.includes("slope")))
   ) {
-    const newAngle = Math.max(5, baseScene.angle_deg - 10);
+    const newAngle = Math.max(5, currentAngle - 10);
     return {
       explanation: `Reduced the ramp incline to ${newAngle}°. A gentler slope decreases the driving gravitational component g sin(θ).`,
-      updates: { angle_deg: newAngle },
+      updates: { angle_deg: newAngle } as any,
     };
   }
 
@@ -137,7 +141,7 @@ export function parseVoiceIntent(
     if (!isNaN(val) && val >= 5 && val <= 75) {
       return {
         explanation: `Adjusted ramp angle to ${val}°.`,
-        updates: { angle_deg: val },
+        updates: { angle_deg: val } as any,
       };
     }
   }
@@ -148,7 +152,7 @@ export function parseVoiceIntent(
     const val = parseFloat(massMatch[1]);
     if (!isNaN(val) && val > 0 && val <= 100) {
       return {
-        explanation: `Set ${baseScene.body} mass to ${val} kg.`,
+        explanation: `Set ${currentBody} mass to ${val} kg.`,
         updates: { mass: val },
       };
     }
@@ -157,8 +161,8 @@ export function parseVoiceIntent(
   // 8. Swap body to block
   if (p.includes("block") || p.includes("cube") || p.includes("sled") || p.includes("sliding")) {
     return {
-      explanation: `Swapped body to sliding block. Notice that friction μ = ${baseScene.friction} now directly retards motion: a = g(sin θ - μ cos θ).`,
-      updates: { body: "block" },
+      explanation: `Swapped body to sliding block. Notice that friction μ = ${currentFriction} now directly retards motion: a = g(sin θ - μ cos θ).`,
+      updates: { body: "block" } as any,
     };
   }
 
@@ -166,7 +170,7 @@ export function parseVoiceIntent(
   if (p.includes("ball") || p.includes("sphere") || p.includes("rolling")) {
     return {
       explanation: `Swapped body to rolling sphere. Rotational inertia I = 2/5 mr² yields a = (5/7) g sin θ under no-slip conditions.`,
-      updates: { body: "ball" },
+      updates: { body: "ball" } as any,
     };
   }
 
@@ -246,7 +250,7 @@ export function parseVoiceIntent(
     return {
       explanation:
         "A steeper ramp increases the component of gravity along the plane, so the ball accelerates more quickly.",
-      updates: { angle_deg: Math.min(60, baseScene.angle_deg + 10) },
+      updates: { angle_deg: Math.min(60, currentAngle + 10) } as any,
     };
   }
 
@@ -262,7 +266,7 @@ export function parseVoiceIntent(
 export async function executeVoiceTurn(
   prompt: string,
   onStateChange: (state: VoiceState) => void,
-  currentScene?: InclineSceneSpec
+  currentScene?: SceneSpec
 ): Promise<VoiceTurnResult> {
   if (!prompt.trim()) throw new Error("Ask Chalk a question before sending it.");
 
@@ -270,6 +274,50 @@ export async function executeVoiceTurn(
   await wait(350);
 
   const { explanation, updates, shouldPlay } = parseVoiceIntent(prompt, currentScene);
+
+  // If local pattern matching didn't yield an action or user is describing a problem setup:
+  if (
+    Object.keys(updates).length === 0 &&
+    (prompt.toLowerCase().includes("spring") ||
+      prompt.toLowerCase().includes("setup") ||
+      prompt.toLowerCase().includes("problem") ||
+      prompt.toLowerCase().includes("apparatus") ||
+      prompt.toLowerCase().includes("atwood") ||
+      prompt.toLowerCase().includes("pulley") ||
+      prompt.toLowerCase().includes("incline") ||
+      prompt.toLowerCase().includes("cart") ||
+      prompt.toLowerCase().includes("orbit") ||
+      prompt.toLowerCase().includes("mass") ||
+      prompt.toLowerCase().includes("pendulum") ||
+      prompt.toLowerCase().includes("collision"))
+  ) {
+    for (const url of ["/api/v1/scenes/analyze", "http://127.0.0.1:8000/api/v1/scenes/analyze"]) {
+      try {
+        const formData = new FormData();
+        formData.append("text", prompt);
+        const resp = await fetch(url, {
+          method: "POST",
+          body: formData,
+        });
+        if (resp.ok) {
+          const data = (await resp.json()) as { scene?: any };
+          if (data?.scene) {
+            const s = data.scene;
+            const customExp = `Configured apparatus for: "${prompt}". Primary law: ${s.primary_law || s.scenario} (${s.formula || "F = ma"}).`;
+            onStateChange("speaking");
+            speakAloud(customExp);
+            return {
+              text: customExp,
+              updatedScene: s,
+              shouldPlay: true,
+            };
+          }
+        }
+      } catch {
+        // Fall back to local explanation
+      }
+    }
+  }
 
   onStateChange("speaking");
 
@@ -286,7 +334,7 @@ export async function executeVoiceTurn(
 export async function completeVoiceTurn(
   prompt: string,
   onStateChange: (state: VoiceState) => void,
-  currentScene?: InclineSceneSpec
+  currentScene?: SceneSpec
 ): Promise<string> {
   const result = await executeVoiceTurn(prompt, onStateChange, currentScene);
   return result.text;
