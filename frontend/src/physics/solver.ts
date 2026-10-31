@@ -32,7 +32,13 @@ export function solveIncline(scene: InclineSceneSpec): SimulationSolution {
   let formulaEquation = "";
   let formulaNote = "";
 
-  if (scene.body === "ball") {
+  if (scene.body === "ball" && scene.friction < (2 / 7) * Math.tan(theta)) {
+    // Too little friction to roll without slipping, so the ball slides while it spins.
+    acceleration = scene.gravity * (sinT - scene.friction * cosT);
+    formulaLabel = "Ball with slip";
+    formulaEquation = "a = g · (sin(θ) − μ·cos(θ))";
+    formulaNote = `μ = ${scene.friction} is below (2/7)·tan(θ), so the ball slips. Independent of mass.`;
+  } else if (scene.body === "ball") {
     // Solid sphere rolling without slipping: I = (2/5) m r^2 => a = (5/7) g sin(theta)
     acceleration = (5 / 7) * scene.gravity * sinT;
     formulaLabel = "Rolling sphere (no slip)";
@@ -82,12 +88,11 @@ export function solveIncline(scene: InclineSceneSpec): SimulationSolution {
   // Exact analytic time: t = sqrt(2 L / a)
   const expectedSeconds = Math.sqrt((2 * scene.length) / acceleration);
 
-  // 120 Hz fixed-step semi-implicit Euler + velocity Verlet integration (matches Rapier 120Hz step)
+  // Animation and chart curve only. The verdict comes from rapierMeasure.ts and the backend.
   const trajectory: TrajectoryPoint[] = [];
   let t = 0;
   let simPos = 0;
   let simVel = 0;
-  // Subtle contact damping / discrete step factor matching Rapier 120Hz solver
   const subStepDrag = 0.99992;
 
   while (simPos < scene.length && t < expectedSeconds * 1.5) {

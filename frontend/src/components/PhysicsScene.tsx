@@ -29,7 +29,7 @@ type PhysicsSceneProps = {
  * - Full interactive OrbitControls: click/drag to rotate 360°, right-click to pan, scroll to zoom.
  * - Dynamic CAD mass scaling: doubling mass visibly enlarges & adds weight rings to the ball.
  * - Supports 4-Way Pepper's Ghost Hologram Projection Mode (`gl.setViewport` / `gl.setScissor`).
- * - Real-time 120Hz Theory vs. Simulation trajectory telemetry.
+ * - Position over time from the formula. The check itself runs in rapierMeasure.ts.
  */
 export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsSceneProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -684,7 +684,7 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
         ) : null}
       </div>
 
-      {/* Live Analytic Formula vs. 120Hz Simulation Telemetry */}
+      {/* Formula and position chart */}
       <div
         style={{
           position: "relative",
@@ -715,7 +715,7 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ fontSize: "0.6rem", color: "#60756a" }}>Theory vs 120Hz Sim</span>
+          <span style={{ fontSize: "0.6rem", color: "#60756a" }}>Position over time</span>
           <svg
             width="130"
             height="36"

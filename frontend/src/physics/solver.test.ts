@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createDemoScene } from "../integrations/mock";
+import { createDemoScene } from "../integrations/backend";
 import { solveIncline, solveProjectile, solvePendulum, solveCollision1D } from "./solver";
 
 describe("Analytic & 120Hz Simulation Physics Solver", () => {

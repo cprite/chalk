@@ -8,6 +8,24 @@ type ResultsPanelProps = {
 
 export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps) {
   const status = verdict?.status ?? "not_applicable";
+  const isStatic = verdict?.status === "match" && verdict.expectedSeconds === 0;
+  const seconds = (value: number | undefined) => (verdict && value ? `${value.toFixed(2)} s` : isStatic ? "At rest" : "—");
+  const heading = isVerifying
+    ? "Checking result"
+    : status === "match"
+      ? "Verified match"
+      : status === "mismatch"
+        ? "Mismatch: do not trust this run"
+        : verdict
+          ? "Could not check"
+          : "Run the experiment";
+  const detail = isVerifying
+    ? "Measuring in the physics engine and comparing with the formula."
+    : verdict?.status === "match"
+      ? `Within the ${verdict.tolerancePct}% tolerance.`
+      : verdict?.status === "mismatch"
+        ? `Outside the ${verdict.tolerancePct}% tolerance.`
+        : verdict?.explanation ?? "Set the ball in motion to compare both results.";
 
   return (
     <section className="results-panel" aria-labelledby="results-title">
@@ -17,20 +35,20 @@ export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps)
         <p className="results-copy">We check the experiment with the analytic result — we do not ask AI to mark its own work.</p>
       </div>
       <div className="formula">
-        <span>Rolling ball</span>
-        <strong>a = 5/7 · g · sin(θ)</strong>
-        <small>Ideal rolling, no slip</small>
+        <span>{scene.body === "ball" ? "Ball" : "Block"}</span>
+        <strong>{verdict?.formulaLatex ?? (scene.body === "ball" ? "a = 5/7 · g · sin(θ)" : "a = g · (sin(θ) − μ·cos(θ))")}</strong>
+        <small>Checked by code, not by AI</small>
       </div>
       <dl className="result-values">
-        <div><dt>Theory</dt><dd>{verdict ? `${verdict.expectedSeconds.toFixed(2)} s` : "—"}</dd></div>
-        <div><dt>Simulation</dt><dd>{verdict ? `${verdict.measuredSeconds.toFixed(2)} s` : "—"}</dd></div>
-        <div><dt>Difference</dt><dd>{verdict ? `${verdict.errorPct.toFixed(1)}%` : "—"}</dd></div>
+        <div><dt>Theory</dt><dd>{seconds(verdict?.expectedSeconds)}</dd></div>
+        <div><dt>Simulation</dt><dd>{seconds(verdict?.measuredSeconds)}</dd></div>
+        <div><dt>Difference</dt><dd>{verdict && verdict.status !== "not_applicable" ? `${verdict.errorPct.toFixed(1)}%` : "—"}</dd></div>
       </dl>
       <div className={`verdict verdict--${status}`} aria-live="polite">
-        <span aria-hidden="true">{isVerifying ? "…" : status === "match" ? "✓" : "○"}</span>
+        <span aria-hidden="true">{isVerifying ? "…" : status === "match" ? "✓" : status === "mismatch" ? "✕" : "○"}</span>
         <div>
-          <strong>{isVerifying ? "Checking result" : status === "match" ? "Verified match" : "Run the experiment"}</strong>
-          <p>{isVerifying ? "Comparing the trajectory with the formula." : verdict ? `Within the ${verdict.tolerancePct}% tolerance.` : `Set the ${scene.body} in motion to compare both results.`}</p>
+          <strong>{heading}</strong>
+          <p>{detail}</p>
         </div>
       </div>
     </section>
