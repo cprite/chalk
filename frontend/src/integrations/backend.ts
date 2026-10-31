@@ -223,11 +223,25 @@ export async function explainResult(scene: SceneSpec, verification: RawVerificat
 }
 
 export async function sendFollowup(scene: SceneSpec, text: string) {
-  const result = await postJson<{ scene: SceneSpec; changes: { field: string; value: unknown }[] }>("/api/v1/scenes/followup", { scene, text });
+  const result = await postJson<{ scene: SceneSpec; changes: { field: string; value: unknown }[]; reply?: string | null }>("/api/v1/scenes/followup", { scene, text });
   if (!isSupportedScene(result.scene)) {
     throw new BackendError("unsupported_problem", `Chalk read a ${(result.scene as { scenario: string }).scenario} problem, but this lab only runs inclined planes and springs for now.`);
   }
   return result;
+}
+
+export async function transcribeAudio(audio: Blob): Promise<string> {
+  const form = new FormData();
+  form.append("audio", audio, "speech");
+  let response: Response;
+  try {
+    response = await fetch("/api/v1/transcribe", { method: "POST", headers: HEADERS, body: form });
+  } catch {
+    throw new BackendError("backend_unavailable", "Chalk's server is not reachable.");
+  }
+  const body = await response.json().catch(() => null);
+  if (response.ok && body) return body.text as string;
+  throw new BackendError(body?.code ?? "backend_unavailable", body?.message ?? "Chalk's server is not reachable.");
 }
 
 export const recordPrediction = (text: string) => postJson("/api/v1/predictions", { text });

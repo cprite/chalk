@@ -244,20 +244,19 @@ def _parse_model_output(response: Any) -> SceneSpec:
     return _convert_flat_to_scene(flat)
 
 
-def call_model(contents: Any, system_prompt: str, schema: Any, client: Any = None) -> Any:
+def call_model(contents: Any, system_prompt: str, schema: Any, client: Any = None, model: Optional[str] = None) -> Any:
     from google import genai
     from google.genai import types
 
     client = client or genai.Client(api_key=os.getenv("GEMINI_API_KEY", ""))
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
-        response_mime_type="application/json",
-        response_schema=schema,
+        **({"response_mime_type": "application/json", "response_schema": schema} if schema else {}),
     )
     payload = contents(types) if callable(contents) else contents
     try:
         return client.models.generate_content(
-            model=os.getenv("GEMINI_REASONING_MODEL", "gemini-4-argon"),
+            model=model or os.getenv("GEMINI_REASONING_MODEL", "gemini-4-argon"),
             contents=payload,
             config=config,
         )

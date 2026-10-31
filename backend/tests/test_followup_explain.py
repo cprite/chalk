@@ -51,6 +51,11 @@ def test_new_scene_uses_analysis():
     assert r["kind"] == "new_scene" and r["scene"].body == "block"
 
 
+def test_reply_keeps_the_scene():
+    r = followup(BALL, "hi", Fake({"kind": "reply", "reply": "Hello!"}))
+    assert r["kind"] == "reply" and r["reply"] == "Hello!" and r["scene"].mass == 1 and r["changes"] == []
+
+
 def test_unsupported_and_empty():
     with pytest.raises(AnalysisError):
         followup(BALL, "tell a joke", Fake({"kind": "unsupported", "reason": "no"}))
@@ -95,3 +100,14 @@ def test_prediction_and_session_journal_and_replay_save(monkeypatch, tmp_path):
 def test_followup_api_rejects_invalid_scene():
     r = client.post("/api/v1/scenes/followup", json={"scene": {"scenario": "nope"}, "text": "x"})
     assert r.status_code == 400 and r.json()["code"] == "invalid_scene"
+
+
+def test_transcribe_rejects_bad_input_and_returns_text():
+    from app.transcribe import TRANSCRIBE_PROMPT, transcribe
+    assert "English" in TRANSCRIBE_PROMPT and "double the mass" not in TRANSCRIBE_PROMPT
+    with pytest.raises(AnalysisError):
+        transcribe(b"x", "video/mp4", Fake())
+    with pytest.raises(AnalysisError):
+        transcribe(b"", "audio/webm", Fake())
+    fake = SimpleNamespace(models=SimpleNamespace(generate_content=lambda **_: SimpleNamespace(text=json.dumps({"text": " hi "}))))
+    assert transcribe(b"x", "audio/webm;codecs=opus", fake) == "hi"
