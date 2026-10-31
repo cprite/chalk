@@ -47,6 +47,12 @@ All `.glb` files are generated and verified via `node frontend/scripts/generate-
 | :--- | :--- | :--- | :--- |
 | `collision_track_rig.glb` | `Air_Track_Rail` + `Cart_A` (`mass_a`, `velocity_a`) + `Cart_B` (`mass_b`, `velocity_b`) | Low-friction anodized linear air track with two color-coded glider carts (`#c76f50` Terracotta & `#214a3d` Forest Green) and spring bumpers. | $v_A' = \frac{(m_A - e m_B)v_A + (1+e)m_B v_B}{m_A + m_B}$, $v_B' = \frac{(1+e)m_A v_A + (m_B - e m_A)v_B}{m_A + m_B}$ |
 
+### P1 Scenario 4: Spring-Mass Harmonic Oscillator (`scenario: "spring_mass"`)
+
+| Asset File | Rigging / Node Hierarchy | Visual & CAD Details | Physics Formula Verified |
+| :--- | :--- | :--- | :--- |
+| `spring_mass_rig.glb` | `Anchor_Wall` $\rightarrow$ `Helical_Spring` ($9$ coils, parametric tube) $\rightarrow$ `Glider_Mass` (scales with $m$) | Precision laboratory air-rail with engraved ticks, left anchor eyelet, dynamic brass helical spring that stretches/compresses at 60 FPS, and stackable mass plates. | Hooke's Law $F = -k x$, Natural frequency $\omega_0 = \sqrt{\frac{k}{m}}$, Period $T = 2\pi\sqrt{\frac{m}{k}}$ |
+
 ### Stage Showcase Bonus: Rutherford Cloud Chamber & 4-Way Hologram Mode
 
 | Asset File | Rigging / Node Hierarchy | Visual & CAD Details | Physics Formula Verified |

@@ -8,11 +8,12 @@ import {
   buildProjectileLauncherCAD,
   buildRollingBallCAD,
   buildSlidingBlockCAD,
+  buildSpringMassCAD,
 } from "../cad/prebakedModels";
 import { solveIncline } from "../physics/solver";
 import type { InclineSceneSpec } from "../types";
 
-type CadPreviewMode = "incline" | "projectile" | "cloud_chamber";
+type CadPreviewMode = "incline" | "projectile" | "cloud_chamber" | "spring";
 
 type PhysicsSceneProps = {
   scene: InclineSceneSpec;
@@ -144,6 +145,8 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
     let projectileActor: THREE.Group | null = null;
     let projectileOrigin = new THREE.Vector3(-2.1, 0.8, 0);
     let chamberNucleus: THREE.Group | null = null;
+    let springRig: ReturnType<typeof buildSpringMassCAD> | null = null;
+    let springForceArrow: THREE.ArrowHelper | null = null;
     const alphaParticles: {
       mesh: THREE.Mesh;
       pos: THREE.Vector3;
@@ -254,6 +257,21 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
           points: [startPos.clone()],
         });
       }
+    } else if (cadMode === "spring") {
+      springRig = buildSpringMassCAD(scene.mass);
+      worldRoot.add(springRig.root);
+
+      if (showVectors) {
+        springForceArrow = new THREE.ArrowHelper(
+          new THREE.Vector3(-1, 0, 0),
+          new THREE.Vector3(springRig.eqX, 0.45, 0),
+          0.6,
+          0xc76f50,
+          0.16,
+          0.09
+        );
+        worldRoot.add(springForceArrow);
+      }
     }
 
     let animId = 0;
@@ -324,6 +342,39 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
               p.points = [p.pos.clone()];
             }
           }
+        }
+      } else if (cadMode === "spring" && springRig) {
+        const k = 32.0;
+        const m = Math.max(0.2, scene.mass);
+        const omega0 = Math.sqrt(k / m);
+        const period = (2 * Math.PI) / omega0;
+        const amplitude = 0.78;
+        const decay = 0.025;
+
+        const activeT = isPlaying ? elapsedSec : 0;
+        const xDisp = isPlaying
+          ? amplitude * Math.cos(omega0 * activeT) * Math.exp(-decay * activeT)
+          : 0.65;
+
+        setSimTime(isPlaying ? activeT % period : 0);
+
+        // Update mass block position
+        springRig.massGroup.position.x = springRig.eqX + xDisp;
+
+        // Dynamic 3D helical coil spring scaling
+        const currentLen = Math.max(0.35, springRig.restLength + xDisp);
+        springRig.springMesh.scale.x = currentLen / springRig.restLength;
+
+        // Dynamic Hooke's restoring force vector F = -kx
+        if (springForceArrow) {
+          const forceDir = xDisp > 0 ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(1, 0, 0);
+          springForceArrow.setDirection(forceDir);
+          springForceArrow.position.set(springRig.eqX + xDisp, 0.45, 0);
+          springForceArrow.setLength(
+            Math.max(0.02, Math.min(1.2, Math.abs(xDisp) * 1.15)),
+            0.14,
+            0.08
+          );
         }
       }
 
@@ -483,6 +534,19 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
           >
             CAD: Cloud Chamber
           </button>
+          <button
+            type="button"
+            onClick={() => setCadMode("spring")}
+            style={{
+              padding: "3px 7px",
+              border: "1px solid #496e60",
+              background: cadMode === "spring" ? "#214a3d" : "transparent",
+              color: cadMode === "spring" ? "#fbf9f2" : "#214a3d",
+              borderRadius: "2px",
+            }}
+          >
+            CAD: Spring-Mass
+          </button>
         </div>
 
         {/* Camera Angles / Orbit POV Preset Buttons */}
@@ -638,10 +702,15 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
         }}
       >
         <div>
-          <strong>{solution.formulaEquation}</strong>
+          <strong>
+            {cadMode === "spring"
+              ? "Hooke's Law: F = −k·x | m·ẍ + k·x = 0"
+              : solution.formulaEquation}
+          </strong>
           <div style={{ color: "#617267", fontSize: "0.61rem" }}>
-            Mass: {scene.mass} kg · t = {simTime.toFixed(2)}s / {solution.durationSeconds.toFixed(2)}s · a ={" "}
-            {solution.acceleration.toFixed(2)} m/s²
+            {cadMode === "spring"
+              ? `Mass: ${scene.mass} kg · k = 32 N/m · ω₀ = ${(Math.sqrt(32 / Math.max(0.2, scene.mass))).toFixed(2)} rad/s · Period T = ${( (2 * Math.PI) / Math.sqrt(32 / Math.max(0.2, scene.mass)) ).toFixed(2)}s`
+              : `Mass: ${scene.mass} kg · t = ${simTime.toFixed(2)}s / ${solution.durationSeconds.toFixed(2)}s · a = ${solution.acceleration.toFixed(2)} m/s²`}
           </div>
         </div>
 

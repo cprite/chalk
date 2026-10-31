@@ -158,6 +158,15 @@ export function parseVoiceIntent(
     };
   }
 
+  // 12. Spring system / Hooke's Law
+  if (p.includes("spring") || p.includes("hooke") || p.includes("oscillator")) {
+    return {
+      explanation: `Configured Hooke's Law Spring-Mass System (F = -kx). Mass is ${baseScene.mass} kg. Notice that doubling the mass decreases the oscillation frequency by 1/√2!`,
+      updates: {},
+      shouldPlay: true,
+    };
+  }
+
   // 12. Simulation controls
   if (p.includes("run") || p.includes("start") || p.includes("play") || p.includes("launch")) {
     return {

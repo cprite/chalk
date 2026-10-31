@@ -21,6 +21,7 @@ const stateLabel: Record<VoiceState, string> = {
 
 const QUICK_COMMANDS = [
   "Double the mass",
+  "Show spring system",
   "Make ramp steeper",
   "Swap to sliding block",
   "Moon gravity",

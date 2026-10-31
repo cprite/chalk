@@ -473,3 +473,130 @@ export function buildForceVectorsGroup(
 
   return vectors;
 }
+
+/**
+ * Parametric 3D Helical Spring Curve for Hooke's Law & Harmonic Oscillations
+ */
+export class HelicalSpringCurve extends THREE.Curve<THREE.Vector3> {
+  coils: number;
+  radius: number;
+  length: number;
+
+  constructor(coils = 9, radius = 0.15, length = 1.85) {
+    super();
+    this.coils = coils;
+    this.radius = radius;
+    this.length = length;
+  }
+
+  getPoint(t: number, optionalTarget = new THREE.Vector3()) {
+    const x = t * this.length;
+    let y = 0;
+    let z = 0;
+    if (t > 0.05 && t < 0.95) {
+      const u = (t - 0.05) / 0.9;
+      const angle = u * Math.PI * 2 * this.coils;
+      y = Math.sin(angle) * this.radius;
+      z = Math.cos(angle) * this.radius;
+    }
+    return optionalTarget.set(x, y, z);
+  }
+}
+
+/**
+ * 6. Harmonic Oscillator CAD Assembly: Spring-Mass Rig (`spring_mass_rig.glb`)
+ */
+export function buildSpringMassCAD(massKg = 1.0): {
+  root: THREE.Group;
+  springGroup: THREE.Group;
+  springMesh: THREE.Mesh;
+  massGroup: THREE.Group;
+  restLength: number;
+  eqX: number;
+} {
+  const root = new THREE.Group();
+  root.name = "Spring_Mass_Rig";
+
+  const anchorX = -1.95;
+  const restLength = 1.85;
+  const eqX = anchorX + 0.14 + restLength;
+
+  // Base laboratory air-track rail
+  const rail = new THREE.Mesh(
+    new THREE.BoxGeometry(4.8, 0.1, 0.7),
+    CAD_MATERIALS.darkForestSteel
+  );
+  rail.position.set(0.1, -0.05, 0);
+  root.add(rail);
+
+  // Calibration tick marks along rail
+  for (let i = -7; i <= 7; i++) {
+    const tick = new THREE.Mesh(
+      new THREE.BoxGeometry(0.015, 0.005, 0.5),
+      i === 0 ? CAD_MATERIALS.terracottaBody : CAD_MATERIALS.anodizedAluminum
+    );
+    tick.position.set(eqX + i * 0.22, 0.003, 0);
+    root.add(tick);
+  }
+
+  // Anchor wall mount at left end
+  const anchorWall = new THREE.Mesh(
+    new THREE.BoxGeometry(0.24, 0.72, 0.6),
+    CAD_MATERIALS.anodizedAluminum
+  );
+  anchorWall.position.set(anchorX, 0.36, 0);
+  root.add(anchorWall);
+
+  const wallEyelet = new THREE.Mesh(
+    new THREE.TorusGeometry(0.065, 0.018, 12, 24),
+    CAD_MATERIALS.turnedBrass
+  );
+  wallEyelet.position.set(anchorX + 0.12, 0.35, 0);
+  root.add(wallEyelet);
+
+  // Helical coil spring
+  const springCurve = new HelicalSpringCurve(9, 0.15, restLength);
+  const springGeo = new THREE.TubeGeometry(springCurve, 140, 0.018, 8, false);
+  const springMesh = new THREE.Mesh(springGeo, CAD_MATERIALS.turnedBrass);
+
+  const springGroup = new THREE.Group();
+  springGroup.position.set(anchorX + 0.14, 0.35, 0);
+  springGroup.add(springMesh);
+  root.add(springGroup);
+
+  // Glider Mass Block with stackable brass weights
+  const massGroup = new THREE.Group();
+  massGroup.name = "Glider_Mass";
+  const blockRadius = 0.22 * Math.pow(Math.max(0.5, Math.min(10, massKg)), 0.22);
+  const blockMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(blockRadius * 2, 0.34, 0.44),
+    CAD_MATERIALS.terracottaBody
+  );
+  blockMesh.position.y = 0.17;
+  massGroup.add(blockMesh);
+
+  // Eyelet connecting mass to spring
+  const massEyelet = new THREE.Mesh(
+    new THREE.TorusGeometry(0.06, 0.018, 12, 24),
+    CAD_MATERIALS.turnedBrass
+  );
+  massEyelet.position.set(-blockRadius, 0.35, 0);
+  massGroup.add(massEyelet);
+
+  // Stack of brass weight plates proportional to massKg
+  const numPlates = Math.max(1, Math.min(5, Math.round(massKg)));
+  for (let i = 0; i < numPlates; i++) {
+    const plate = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.12, 0.12, 0.04, 20),
+      CAD_MATERIALS.turnedBrass
+    );
+    plate.position.y = 0.36 + i * 0.045;
+    massGroup.add(plate);
+  }
+
+  massGroup.position.set(eqX, 0, 0);
+  root.add(massGroup);
+
+  return { root, springGroup, springMesh, massGroup, restLength, eqX };
+}
+

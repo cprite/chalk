@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-31T13:06:47.297Z",
+  "generatedAt": "2026-10-31T13:49:00.360Z",
   "strategy": "pre-rendered-glb-zero-wait",
   "models": [
     {
@@ -26,6 +26,11 @@
       "file": "/models/cloud_chamber_rig.glb",
       "bytes": 37988,
       "description": "Rutherford Cloud Chamber + Helmholtz Coils"
+    },
+    {
+      "file": "/models/spring_mass_rig.glb",
+      "bytes": 37068,
+      "description": "Hooke's Law Spring-Mass Harmonic Oscillator"
     }
   ]
 }

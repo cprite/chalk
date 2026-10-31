@@ -282,12 +282,48 @@ coilTop.rotation.x = Math.PI / 2;
 coilTop.position.y = 0.85;
 chamberGroup.add(coilTop);
 
+// 6. spring_mass_rig.glb
+class HelicalSpringCurveMjs extends THREE.Curve {
+  constructor(coils = 9, radius = 0.15, length = 1.85) {
+    super();
+    this.coils = coils;
+    this.radius = radius;
+    this.length = length;
+  }
+  getPoint(t, optionalTarget = new THREE.Vector3()) {
+    const x = t * this.length;
+    let y = 0;
+    let z = 0;
+    if (t > 0.05 && t < 0.95) {
+      const u = (t - 0.05) / 0.9;
+      const angle = u * Math.PI * 2 * this.coils;
+      y = Math.sin(angle) * this.radius;
+      z = Math.cos(angle) * this.radius;
+    }
+    return optionalTarget.set(x, y, z);
+  }
+}
+const springGroupModel = new THREE.Group();
+const railMesh = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.1, 0.7), matSteel);
+springGroupModel.add(railMesh);
+const wallMesh = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.72, 0.6), matAlum);
+wallMesh.position.set(-1.95, 0.36, 0);
+springGroupModel.add(wallMesh);
+const springCurveMjs = new HelicalSpringCurveMjs(9, 0.15, 1.85);
+const springMeshModel = new THREE.Mesh(new THREE.TubeGeometry(springCurveMjs, 100, 0.018, 8, false), matBrass);
+springMeshModel.position.set(-1.81, 0.35, 0);
+springGroupModel.add(springMeshModel);
+const gliderMesh = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.34, 0.44), matTerra);
+gliderMesh.position.set(0.04, 0.17, 0);
+springGroupModel.add(gliderMesh);
+
 const modelsToExport = [
   { file: "incline_ramp_rig.glb", group: rampGroup, description: "P0 Inclined Plane CAD Bench" },
   { file: "rolling_ball_cad.glb", group: ballGroup, description: "P0 Rolling Sphere with Brass Meridian Stripes" },
   { file: "sliding_block_cad.glb", group: blockGroup, description: "P0 Sliding Block with Brass Weights" },
   { file: "projectile_launcher_rig.glb", group: launcherGroup, description: "P1 Articulated Projectile Cannon Rig" },
   { file: "cloud_chamber_rig.glb", group: chamberGroup, description: "Rutherford Cloud Chamber + Helmholtz Coils" },
+  { file: "spring_mass_rig.glb", group: springGroupModel, description: "Hooke's Law Spring-Mass Harmonic Oscillator" },
 ];
 
 const manifest = {
