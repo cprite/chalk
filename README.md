@@ -6,6 +6,8 @@ Chalk turns what a teacher says or draws into a 3D physics experiment the class 
 
 🥉 **3rd place, Track 02: Multimodal & Human-Centric AI**, at [Halloween at Imperial: Gemini Edition](https://luma.com/p41k1z3g) (2026).
 
+![Chalk running a ball on an incline, with the formula and the Rapier measurement agreeing within 0.4%](docs/images/ball-verified.png)
+
 ## The moment to try
 
 1. Say: *"A ball rolls down a 30 degree slope, 4 metres long."*
@@ -13,6 +15,8 @@ Chalk turns what a teacher says or draws into a 3D physics experiment the class 
 3. Say: *"Double the mass."* and run it again.
 
 The time stays at about 1.51 s, because mass is not in the formula for a rolling ball. Do the same with a mass on a spring and the period changes, from 1.28 s to 1.81 s when the mass doubles from 5 kg to 10 kg.
+
+![Chalk running a spring oscillator, with a measured period of 1.28 s matching the formula](docs/images/spring-verified.png)
 
 ## The model proposes, code checks
 
