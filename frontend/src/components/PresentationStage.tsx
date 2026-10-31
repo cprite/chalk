@@ -104,6 +104,7 @@ export function PresentationStage({
           <a className="wordmark" href="#top" aria-label="Chalk home">chalk<span>.</span></a>
           <p id="presentation-title">Inclined plane</p>
           <span className="presentation-mode-badge"><i /> Mock mode</span>
+          {verificationLabel ? <span className="presentation-verification" aria-live="polite">{verificationLabel}</span> : null}
         </div>
         <div className="presentation-tools" aria-label="Presentation tools">
           <button ref={controlsButtonRef} className="presentation-tool" type="button" onClick={() => toggleOverlay("controls")} aria-controls="presentation-overlay" aria-expanded={overlay === "controls"}>
@@ -123,17 +124,6 @@ export function PresentationStage({
 
       <div className="presentation-scene">
         <PhysicsScene scene={scene} isPlaying={isPlaying} />
-        <div className={`presentation-caption presentation-caption--${voiceState}`} aria-live="polite">
-          <span>{voiceLabels[voiceState]}</span>
-          <p>{transcript}</p>
-        </div>
-        {voiceError ? (
-          <div className="presentation-error" role="alert">
-            <p>{voiceError}</p>
-            <button type="button" onClick={onRetryVoice}>Try again</button>
-          </div>
-        ) : null}
-        {verificationLabel ? <span className="presentation-verification" aria-live="polite">{verificationLabel}</span> : null}
       </div>
 
       <footer className="presentation-footer">
@@ -143,7 +133,7 @@ export function PresentationStage({
           </button>
           <button className="presentation-tool" type="button" onClick={onReset}>Reset</button>
         </div>
-        <div className="presentation-voice-control">
+        <div className="presentation-voice-dock">
           <button
             className={`presentation-mic presentation-mic--${voiceState}`}
             type="button"
@@ -152,7 +142,16 @@ export function PresentationStage({
           >
             <span aria-hidden="true">⌁</span>
           </button>
-          <span>{voiceState === "listening" ? "Tap to stop" : "Ask Chalk"}</span>
+          <div className={`presentation-caption presentation-caption--${voiceState}`} aria-live="polite">
+            <span>{voiceLabels[voiceState]}</span>
+            <p>{transcript}</p>
+            {voiceError ? (
+              <div className="presentation-error" role="alert">
+                <p>{voiceError}</p>
+                <button type="button" onClick={onRetryVoice}>Try again</button>
+              </div>
+            ) : null}
+          </div>
         </div>
         <p className="presentation-shortcut">Escape closes an overlay or exits</p>
       </footer>
