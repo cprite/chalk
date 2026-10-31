@@ -1,25 +1,91 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type SketchPanelProps = {
   previewUrl: string | null;
   fileName: string | null;
   isAnalyzing: boolean;
+  analysisSuccess: string | null;
   error: string | null;
   onSelectFile: (file: File) => void;
   onAnalyze: () => void;
-  onCameraRequest: () => void;
+  onSelectPreset?: (url: string, name: string) => void;
 };
 
 export function SketchPanel({
   previewUrl,
   fileName,
   isAnalyzing,
+  analysisSuccess,
   error,
   onSelectFile,
   onAnalyze,
-  onCameraRequest,
+  onSelectPreset,
 }: SketchPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const startCamera = async () => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+      });
+      streamRef.current = stream;
+      setCameraActive(true);
+    } catch (err: any) {
+      setCameraError(
+        err.name === "NotAllowedError"
+          ? "Camera permission denied. Upload a sketch file or choose a preset."
+          : "Camera not available on this device: " + (err.message || String(err))
+      );
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  };
+
+  useEffect(() => {
+    if (cameraActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+    return () => {
+      if (!cameraActive && streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, [cameraActive]);
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          const file = new File([blob], "camera_sketch.png", { type: "image/png" });
+          onSelectFile(file);
+        }
+        stopCamera();
+      },
+      "image/png",
+      0.95
+    );
+  };
 
   return (
     <section className="panel sketch-panel" aria-labelledby="sketch-title">
@@ -35,15 +101,30 @@ export function SketchPanel({
         ref={inputRef}
         className="sr-only"
         type="file"
-        accept="image/png,image/jpeg"
+        accept="image/png,image/jpeg,image/webp"
         onChange={(event) => {
           const file = event.target.files?.[0];
-          if (file) onSelectFile(file);
+          if (file) {
+            onSelectFile(file);
+            event.target.value = ""; // reset so same file can be re-selected
+          }
         }}
       />
 
-      <div className={`sketch-preview ${previewUrl ? "sketch-preview--filled" : ""}`}>
-        {previewUrl ? (
+      <div className={`sketch-preview ${previewUrl || cameraActive ? "sketch-preview--filled" : ""}`}>
+        {cameraActive ? (
+          <div className="camera-viewfinder">
+            <video ref={videoRef} autoPlay playsInline muted className="camera-video" />
+            <div className="camera-overlay">
+              <button type="button" className="button button--primary button--sm" onClick={capturePhoto}>
+                📸 Snap photo
+              </button>
+              <button type="button" className="button button--ghost button--sm" onClick={stopCamera}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : previewUrl ? (
           <img src={previewUrl} alt="Preview of your uploaded physics sketch" />
         ) : (
           <div className="empty-sketch" aria-hidden="true">
@@ -58,20 +139,66 @@ export function SketchPanel({
         )}
       </div>
 
-      <p className="upload-name" aria-live="polite">{fileName ?? "PNG or JPEG · up to 5 MB"}</p>
+      <p className="upload-name" aria-live="polite">
+        {isAnalyzing ? "⚡ Gemini 4 Argon analyzing sketch..." : fileName ?? "PNG or JPEG · up to 5 MB"}
+      </p>
+
+      {analysisSuccess && (
+        <div className="sketch-success-badge" role="status">
+          <span className="success-icon">✓</span>
+          <span>{analysisSuccess}</span>
+        </div>
+      )}
+
       {error ? <p className="inline-error" role="alert">{error}</p> : null}
+      {cameraError ? <p className="inline-error" role="alert">{cameraError}</p> : null}
 
       <div className="stacked-actions">
         <button className="button button--secondary" type="button" onClick={() => inputRef.current?.click()}>
           <span aria-hidden="true">↥</span> Upload sketch
         </button>
-        <button className="button button--ghost" type="button" onClick={onCameraRequest}>
+        <button className="button button--ghost" type="button" onClick={startCamera}>
           <span aria-hidden="true">◉</span> Use camera
         </button>
       </div>
-      <button className="button button--primary full-width" type="button" disabled={!previewUrl || isAnalyzing} onClick={onAnalyze}>
+
+      <button
+        className="button button--primary full-width"
+        type="button"
+        disabled={!previewUrl || isAnalyzing}
+        onClick={onAnalyze}
+      >
         {isAnalyzing ? "Reading your sketch…" : "Analyze drawing"}
       </button>
+
+      {onSelectPreset && (
+        <div className="sketch-presets-block">
+          <p className="presets-heading">Quick demo sketches:</p>
+          <div className="preset-pill-list">
+            <button
+              type="button"
+              className="preset-pill-btn"
+              onClick={() => onSelectPreset("/drawings/user_sketch_60deg_20kg.png", "user_sketch_60deg_20kg.png")}
+            >
+              📐 60° · 20 kg Block
+            </button>
+            <button
+              type="button"
+              className="preset-pill-btn"
+              onClick={() => onSelectPreset("/drawings/incline_block_labelled.png", "incline_block_3kg.png")}
+            >
+              📐 30° · 3 kg Block
+            </button>
+            <button
+              type="button"
+              className="preset-pill-btn"
+              onClick={() => onSelectPreset("/drawings/incline_ball_labelled.png", "incline_ball_1kg.png")}
+            >
+              ⚽ 30° · 1 kg Ball
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

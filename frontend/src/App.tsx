@@ -15,6 +15,7 @@ export default function App() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisSuccess, setAnalysisSuccess] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verdict, setVerdict] = useState<VerificationVerdict | null>(null);
@@ -27,11 +28,30 @@ export default function App() {
   );
 
   useEffect(() => () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (previewUrl && previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
+
+  const analyzeWithFile = async (targetFile: File) => {
+    setIsAnalyzing(true);
+    setInputError(null);
+    setAnalysisSuccess(null);
+    try {
+      const parsed = await analyzeSketch(targetFile);
+      setScene(parsed);
+      setVerdict(null);
+      setAnalysisSuccess(
+        `Gemini 4 Argon: ${parsed.angle_deg}° slope · ${parsed.mass} kg ${parsed.body}`
+      );
+    } catch (error) {
+      setInputError(error instanceof Error ? error.message : "We could not read that sketch. Please try again.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   const selectFile = (selected: File) => {
     setInputError(null);
+    setAnalysisSuccess(null);
     if (!selected.type.startsWith("image/")) {
       setInputError("Upload a PNG or JPEG image of your physics sketch.");
       return;
@@ -42,20 +62,28 @@ export default function App() {
     }
     setFile(selected);
     setPreviewUrl(URL.createObjectURL(selected));
+    // Immediately analyze sketch upon upload without requiring extra clicks
+    void analyzeWithFile(selected);
+  };
+
+  const selectPreset = async (url: string, name: string) => {
+    try {
+      setInputError(null);
+      setAnalysisSuccess(null);
+      setPreviewUrl(url);
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const presetFile = new File([blob], name, { type: "image/png" });
+      setFile(presetFile);
+      await analyzeWithFile(presetFile);
+    } catch (err: any) {
+      setInputError("Could not load preset sketch: " + (err.message || String(err)));
+    }
   };
 
   const analyze = async () => {
     if (!file) return;
-    setIsAnalyzing(true);
-    setInputError(null);
-    try {
-      setScene(await analyzeSketch(file));
-      setVerdict(null);
-    } catch (error) {
-      setInputError(error instanceof Error ? error.message : "We could not read that sketch. Please try again.");
-    } finally {
-      setIsAnalyzing(false);
-    }
+    await analyzeWithFile(file);
   };
 
   const runVerification = async () => {
@@ -120,15 +148,19 @@ export default function App() {
           previewUrl={previewUrl}
           fileName={file?.name ?? null}
           isAnalyzing={isAnalyzing}
+          analysisSuccess={analysisSuccess}
           error={inputError}
           onSelectFile={selectFile}
           onAnalyze={() => void analyze()}
-          onCameraRequest={() => setInputError("Camera access will connect to Gemini Live. Upload a photo for this demo mode.")}
+          onSelectPreset={selectPreset}
         />
 
         <section className="simulation-panel" aria-labelledby="simulation-title">
           <div className="simulation-heading">
-            <div><p className="eyebrow">02 / EXPERIMENT</p><h2 id="simulation-title">Inclined plane</h2></div>
+            <div>
+              <p className="eyebrow">02 / EXPERIMENT</p>
+              <h2 id="simulation-title">Inclined plane</h2>
+            </div>
             <span className="live-chip"><i /> {isPlaying ? "Running" : "Ready"}</span>
           </div>
           <PhysicsScene
