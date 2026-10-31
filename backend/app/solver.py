@@ -147,6 +147,40 @@ def generative_solve(scene: Any) -> Expected:
     )
 
 
+def collision_1d(scene: Any) -> Expected:
+    """
+    Analytic solver for 1D linear collision with coefficient of restitution e.
+    Conservation of momentum: m_A * v_A + m_B * v_B = m_A * v_A' + m_B * v_B'
+    Restitution: v_B' - v_A' = e * (v_A - v_B)
+    """
+    mA = float(getattr(scene, "mass_a", 1.0))
+    mB = float(getattr(scene, "mass_b", 1.0))
+    vA = float(getattr(scene, "velocity_a", 1.0))
+    vB = float(getattr(scene, "velocity_b", 0.0))
+    e = float(getattr(scene, "restitution", 1.0))
+
+    if mA <= 0 or mB <= 0:
+        raise Unsupported("Masses must be strictly positive")
+
+    total_m = mA + mB
+    vA_after = ((mA - e * mB) * vA + (1.0 + e) * mB * vB) / total_m
+    vB_after = ((1.0 + e) * mA * vA + (mB - e * mA) * vB) / total_m
+
+    rel_v = vA - vB
+    t_collision = 2.0 / rel_v if rel_v > 0.001 else 1.0
+
+    return Expected(
+        moves=True,
+        acceleration=0.0,
+        time_to_end_s=t_collision,
+        regime="linear_collision",
+        formula=(
+            f"v_A' = ((mA - e*mB)vA + (1+e)mB*vB)/(mA+mB) = {vA_after:.2f} m/s; "
+            f"v_B' = ((1+e)mA*vA + (mB - e*mA)vB)/(mA+mB) = {vB_after:.2f} m/s"
+        ),
+    )
+
+
 def solve(scene: Any) -> Expected:
     """General solver dispatch."""
     scen = getattr(scene, "scenario", None)
@@ -156,4 +190,6 @@ def solve(scene: Any) -> Expected:
         return spring(scene)
     if scen == "generative":
         return generative_solve(scene)
+    if scen == "collision_1d":
+        return collision_1d(scene)
     raise Unsupported(f"Scenario '{scen}' is unsupported")

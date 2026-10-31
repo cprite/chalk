@@ -51,6 +51,9 @@ function isSupportedScene(scene: unknown): scene is SceneSpec {
   if (c.scenario === "generative") {
     return typeof c.title === "string";
   }
+  if (c.scenario === "collision_1d") {
+    return typeof c.mass_a === "number" && typeof c.mass_b === "number";
+  }
   return false;
 }
 
@@ -113,6 +116,21 @@ export async function analyzeSketch(file: File | Blob): Promise<AnalysisResult> 
               gravity: Number(s.gravity ?? 9.81),
               confidence: Number(s.confidence ?? 0.95),
               assumptions: s.assumptions || ["Generative Physics Assembly via Gemini 4 Argon"],
+            },
+            source: "live",
+          };
+        } else if (s.scenario === "collision_1d") {
+          return {
+            scene: {
+              scenario: "collision_1d",
+              mass_a: Number(s.mass_a ?? 2.0),
+              mass_b: Number(s.mass_b ?? 1.0),
+              velocity_a: Number(s.velocity_a ?? 3.0),
+              velocity_b: Number(s.velocity_b ?? 1.0),
+              restitution: Number(s.restitution ?? 1.0),
+              gravity: Number(s.gravity ?? 9.81),
+              confidence: Number(s.confidence ?? 0.95),
+              assumptions: s.assumptions || ["1D Linear Collision on air track via Gemini 4 Argon"],
             },
             source: "live",
           };

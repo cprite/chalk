@@ -23,7 +23,7 @@ Scenarios:
 - spring: vertical spring-mass oscillator, single spring or connected springs (series or parallel). Fields: mass, spring_constant (effective k in N/m), spring_count, arrangement ("series" or "parallel" or "single"), k1, k2, amplitude.
 - projectile: mass, speed, angle_deg, height.
 - pendulum: mass, length, angle_deg.
-- collision_1d: mass_a, mass_b, velocity_a, velocity_b, restitution.
+- collision_1d: two colliding bodies/carts on a track, travelling towards each other or in the same direction. Fields: mass_a, mass_b, velocity_a, velocity_b, restitution.
 - generative: ANY other physics apparatus, setup, or experiment (e.g. coupled springs, Atwood machines, pulleys, carts, balance beams, circular motion, orbits, or custom arrangements). Fields: title, primary_law, formula, mass, objects (list of physical components: id, type, label, mass, k, position, connects, is_fixed).
 - unsupported: only if the input contains NO physics problem whatsoever (e.g. random selfie or landscape). Explain why in reason.
 
@@ -31,6 +31,10 @@ Rules:
 - NEVER return "unsupported" if the drawing or prompt represents ANY physical system, experiment, or apparatus! Use "generative" (or "spring" / "incline" etc.) to assemble it.
 - Use a value that is written or spoken. Otherwise return null for it. Never invent a value.
 - Exception: if angle_deg is not written but the slope or launch is drawn, estimate it from the drawing and add an assumption saying it was estimated.
+- For collisions (collision_1d):
+  - If both bodies travel in the same direction, assign both velocities the same positive sign (e.g. v_a = 4 m/s, v_b = 1 m/s).
+  - If head-on, assign opposite signs.
+  - Default restitution is 1.0 (elastic) unless inelastic/sticky is indicated.
 - For springs:
   - If multiple springs are drawn with spring constants like k1, k2 (e.g. k1=200 N/m, k2=300 N/m, pay attention to zeros):
     - If connected end-to-end (one after another vertically), arrangement is "series".
@@ -210,11 +214,11 @@ def _convert_flat_to_scene(flat: FlatAnalysisResponse) -> SceneSpec:
         }
     else:
         scene |= {
-            "mass_a": flat.mass_a,
-            "mass_b": flat.mass_b,
-            "velocity_a": flat.velocity_a,
-            "velocity_b": flat.velocity_b,
-            "restitution": _default(flat.restitution, 1.0, "Default: elastic collision", assumptions),
+            "mass_a": _default(flat.mass_a, 2.0, "Default: mass A = 2 kg", assumptions),
+            "mass_b": _default(flat.mass_b, 1.0, "Default: mass B = 1 kg", assumptions),
+            "velocity_a": _default(flat.velocity_a, 3.0, "Default: velocity A = 3 m/s", assumptions),
+            "velocity_b": _default(flat.velocity_b, 1.0, "Default: velocity B = 1 m/s", assumptions),
+            "restitution": _default(flat.restitution, 1.0, "Default: elastic collision (e = 1)", assumptions),
         }
 
     scene["confidence"] = flat.confidence if flat.confidence is not None else DEFAULT_CONFIDENCE

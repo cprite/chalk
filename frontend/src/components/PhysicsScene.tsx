@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
   buildCloudChamberCAD,
+  buildCollisionTrackCAD,
   buildForceVectorsGroup,
   buildGenerativeApparatus,
   buildGenerativeSpringAssembly,
@@ -10,11 +11,13 @@ import {
   buildProjectileLauncherCAD,
   buildRollingBallCAD,
   buildSlidingBlockCAD,
+  type CollisionTrackAssembly,
   type GenerativeApparatusAssembly,
   type GenerativeSpringAssembly,
 } from "../cad/prebakedModels";
 import { solveIncline } from "../physics/solver";
 import {
+  type Collision1DSceneSpec,
   type GenerativeSceneSpec,
   type InclineSceneSpec,
   type SceneSpec,
@@ -25,7 +28,7 @@ import {
   getSceneMass,
 } from "../types";
 
-type CadPreviewMode = "incline" | "projectile" | "cloud_chamber" | "spring" | "generative";
+type CadPreviewMode = "incline" | "projectile" | "cloud_chamber" | "spring" | "generative" | "collision_1d";
 
 type PhysicsSceneProps = {
   scene: SceneSpec;
@@ -101,6 +104,8 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
       setCadMode("projectile");
     } else if (scene.scenario === "cloud_chamber") {
       setCadMode("cloud_chamber");
+    } else if (scene.scenario === "collision_1d") {
+      setCadMode("collision_1d");
     }
   }, [scene]);
 
@@ -231,6 +236,7 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
     let chamberNucleus: THREE.Group | null = null;
     let generativeSpring: GenerativeSpringAssembly | null = null;
     let customApparatus: GenerativeApparatusAssembly | null = null;
+    let collisionTrack: CollisionTrackAssembly | null = null;
     let springUpForceArrow: THREE.ArrowHelper | null = null;
     let springDownForceArrow: THREE.ArrowHelper | null = null;
     const alphaParticles: {
@@ -412,6 +418,16 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
         );
         worldRoot.add(springDownForceArrow);
       }
+    } else if (cadMode === "collision_1d") {
+      const col = scene.scenario === "collision_1d" ? (scene as Collision1DSceneSpec) : {
+        mass_a: 2.0,
+        mass_b: 1.0,
+        velocity_a: 3.0,
+        velocity_b: 1.0,
+        restitution: 1.0,
+      };
+      collisionTrack = buildCollisionTrackCAD(col.mass_a, col.mass_b);
+      worldRoot.add(collisionTrack.root);
     }
 
     let animId = 0;
@@ -588,6 +604,64 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
       if (customApparatus) {
         customApparatus.update(elapsedSec, isPlaying);
         setSimTime(isPlaying ? elapsedSec % 2.0 : 0);
+      }
+
+      if (cadMode === "collision_1d" && collisionTrack) {
+        const col = scene.scenario === "collision_1d" ? (scene as Collision1DSceneSpec) : {
+          mass_a: 2.0,
+          mass_b: 1.0,
+          velocity_a: 3.0,
+          velocity_b: 1.0,
+          restitution: 1.0,
+        };
+        const mA = col.mass_a;
+        const mB = col.mass_b;
+        const vA = col.velocity_a;
+        const vB = col.velocity_b;
+        const e = col.restitution ?? 1.0;
+
+        const vA_after = ((mA - e * mB) * vA + (1 + e) * mB * vB) / (mA + mB);
+        const vB_after = ((1 + e) * mA * vA + (mB - e * mA) * vB) / (mA + mB);
+
+        const xA0 = -1.4;
+        const xB0 = -0.2;
+        const relV = vA - vB;
+        const collisionT = relV > 0.05 ? (xB0 - xA0 - 0.4) / relV : 1.2;
+        const cycleDur = collisionT + 2.0;
+
+        const t = isPlaying ? elapsedSec % cycleDur : 0;
+        setSimTime(t);
+
+        let curXA: number;
+        let curXB: number;
+        let curVA: number;
+        let curVB: number;
+
+        if (t <= collisionT) {
+          curXA = xA0 + vA * t * 0.45;
+          curXB = xB0 + vB * t * 0.45;
+          curVA = vA;
+          curVB = vB;
+        } else {
+          const dtPost = t - collisionT;
+          const xImpactA = xA0 + vA * collisionT * 0.45;
+          const xImpactB = xB0 + vB * collisionT * 0.45;
+          curXA = xImpactA + vA_after * dtPost * 0.45;
+          curXB = xImpactB + vB_after * dtPost * 0.45;
+          curVA = vA_after;
+          curVB = vB_after;
+        }
+
+        collisionTrack.cartA.position.x = Math.max(-1.9, Math.min(1.8, curXA));
+        collisionTrack.cartB.position.x = Math.max(-1.9, Math.min(1.8, curXB));
+
+        if (showVectors) {
+          collisionTrack.arrowA.setDirection(new THREE.Vector3(curVA >= 0 ? 1 : -1, 0, 0));
+          collisionTrack.arrowA.setLength(Math.max(0.1, Math.min(0.9, Math.abs(curVA) * 0.25)), 0.12, 0.06);
+
+          collisionTrack.arrowB.setDirection(new THREE.Vector3(curVB >= 0 ? 1 : -1, 0, 0));
+          collisionTrack.arrowB.setLength(Math.max(0.1, Math.min(0.9, Math.abs(curVB) * 0.25)), 0.12, 0.06);
+        }
       }
 
       if (!hologramMode) {
@@ -770,6 +844,19 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
             }}
           >
             {scene.scenario === "generative" ? "CAD: Generative Apparatus" : "CAD: Vertical Springs"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setCadMode("collision_1d")}
+            style={{
+              padding: "3px 7px",
+              border: "1px solid #496e60",
+              background: cadMode === "collision_1d" ? "#214a3d" : "transparent",
+              color: cadMode === "collision_1d" ? "#fbf9f2" : "#214a3d",
+              borderRadius: "2px",
+            }}
+          >
+            CAD: 1D Collision Track
           </button>
         </div>
 
@@ -1003,10 +1090,19 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
           <strong>
             {cadMode === "spring" || cadMode === "generative"
               ? `Live 120Hz Verlet Integrator: ${scene.scenario === "generative" ? (scene as GenerativeSceneSpec).formula || "F_net = m·a" : "m·ÿ + k_eff·y = 0"} (${springCount} springs in ${springArrangement})`
+              : cadMode === "collision_1d"
+              ? "1D Linear Momentum: m_A·v_A + m_B·v_B = m_A·v_A' + m_B·v_B'"
               : solution.formulaEquation}
           </strong>
           <div style={{ color: "#617267", fontSize: "0.61rem" }}>
-            {cadMode === "spring" || cadMode === "generative"
+            {cadMode === "collision_1d"
+              ? (() => {
+                  const col = scene.scenario === "collision_1d" ? (scene as Collision1DSceneSpec) : { mass_a: 2, mass_b: 1, velocity_a: 3, velocity_b: 1, restitution: 1 };
+                  const vA_after = ((col.mass_a - (col.restitution ?? 1) * col.mass_b) * col.velocity_a + (1 + (col.restitution ?? 1)) * col.mass_b * col.velocity_b) / (col.mass_a + col.mass_b);
+                  const vB_after = ((1 + (col.restitution ?? 1)) * col.mass_a * col.velocity_a + (col.mass_b - (col.restitution ?? 1) * col.mass_a) * col.velocity_b) / (col.mass_a + col.mass_b);
+                  return `m_A = ${col.mass_a} kg (v_A = ${col.velocity_a} m/s) · m_B = ${col.mass_b} kg (v_B = ${col.velocity_b} m/s) · Resulting: v_A' = ${vA_after.toFixed(2)} m/s, v_B' = ${vB_after.toFixed(2)} m/s (e = ${col.restitution ?? 1})`;
+                })()
+              : cadMode === "spring" || cadMode === "generative"
               ? (() => {
                   const springScene = scene.scenario === "spring" ? (scene as SpringSceneSpec) : null;
                   const genScene = scene.scenario === "generative" ? (scene as GenerativeSceneSpec) : null;

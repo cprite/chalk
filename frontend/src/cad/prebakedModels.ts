@@ -824,3 +824,124 @@ export function buildGenerativeApparatus(objects: GenerativeObjectSpec[]): Gener
 
   return { root, actors, update };
 }
+
+/**
+ * 7. Laboratory Linear Air Track with Collision Glider Carts (`collision_1d`)
+ */
+export interface CollisionTrackAssembly {
+  root: THREE.Group;
+  cartA: THREE.Group;
+  cartB: THREE.Group;
+  arrowA: THREE.ArrowHelper;
+  arrowB: THREE.ArrowHelper;
+  trackLength: number;
+}
+
+export function buildCollisionTrackCAD(massA: number, massB: number): CollisionTrackAssembly {
+  const root = new THREE.Group();
+  root.name = "Collision_Air_Track";
+
+  const trackLength = 4.2;
+
+  // 1. Air Track Base Bench & Extrusion Rail
+  const bench = new THREE.Mesh(
+    new THREE.BoxGeometry(trackLength + 0.4, 0.1, 0.6),
+    CAD_MATERIALS.darkForestSteel
+  );
+  bench.position.set(0, -0.05, 0);
+  root.add(bench);
+
+  // Triangular Prism Air Track Rail
+  const railGeo = new THREE.CylinderGeometry(0.12, 0.12, trackLength, 3);
+  railGeo.rotateZ(Math.PI / 2);
+  const rail = new THREE.Mesh(railGeo, CAD_MATERIALS.anodizedAluminum);
+  rail.position.set(0, 0.1, 0);
+  root.add(rail);
+
+  // End stops with rubber bumpers
+  for (const xSide of [-trackLength / 2, trackLength / 2]) {
+    const stop = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.22, 0.35),
+      CAD_MATERIALS.rubberStopper
+    );
+    stop.position.set(xSide, 0.15, 0);
+    root.add(stop);
+  }
+
+  // Ticks along the track
+  for (let x = -1.8; x <= 1.8; x += 0.2) {
+    const tick = new THREE.Mesh(
+      new THREE.BoxGeometry(0.008, 0.04, 0.15),
+      CAD_MATERIALS.chalkWhite
+    );
+    tick.position.set(x, 0.2, 0);
+    root.add(tick);
+  }
+
+  // Helper to build a laboratory glider cart
+  const buildCart = (mass: number, colorMat: THREE.Material) => {
+    const cart = new THREE.Group();
+    const width = 0.38 * Math.pow(mass, 0.22);
+    const height = 0.18;
+    const depth = 0.24;
+
+    const bodyMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, depth),
+      colorMat
+    );
+    bodyMesh.position.y = 0.22;
+    cart.add(bodyMesh);
+
+    // Spring / magnetic bumper on front and back
+    for (const bx of [-width / 2 - 0.03, width / 2 + 0.03]) {
+      const bumper = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.025, 0.025, 0.06, 12),
+        CAD_MATERIALS.turnedBrass
+      );
+      bumper.rotateZ(Math.PI / 2);
+      bumper.position.set(bx, 0.22, 0);
+      cart.add(bumper);
+    }
+
+    // Flag banner for photogate sensor
+    const flag = new THREE.Mesh(
+      new THREE.BoxGeometry(0.005, 0.14, 0.1),
+      CAD_MATERIALS.chalkWhite
+    );
+    flag.position.set(0, 0.38, 0);
+    cart.add(flag);
+
+    return cart;
+  };
+
+  const cartA = buildCart(massA, CAD_MATERIALS.terracottaBody);
+  cartA.position.set(-1.2, 0, 0);
+  root.add(cartA);
+
+  const cartB = buildCart(massB, CAD_MATERIALS.birchWood);
+  cartB.position.set(0.2, 0, 0);
+  root.add(cartB);
+
+  // Velocity vectors (green arrow for A, orange arrow for B)
+  const arrowA = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(0, 0.45, 0),
+    0.6,
+    0x214a3d,
+    0.14,
+    0.08
+  );
+  cartA.add(arrowA);
+
+  const arrowB = new THREE.ArrowHelper(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(0, 0.45, 0),
+    0.4,
+    0xc76f50,
+    0.14,
+    0.08
+  );
+  cartB.add(arrowB);
+
+  return { root, cartA, cartB, arrowA, arrowB, trackLength };
+}
