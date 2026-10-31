@@ -144,8 +144,8 @@ export function VoiceAssistant({
       </button>
       <p className="mic-hint">
         {state === "listening"
-          ? "Listening via mic… Tap to stop"
-          : 'Tap mic or say "Double the mass"'}
+          ? "Recording… Tap again to submit your phrase."
+          : "Tap the microphone to begin recording, then tap again to submit."}
       </p>
     </section>
   );
