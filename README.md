@@ -1,8 +1,8 @@
 # Chalk
 
-Draw a physics problem on paper, show it to the camera, and talk to a live 3D simulation of it. Every simulation is checked against the analytic solution, and any mismatch is shown on screen.
+Describe a physics experiment out loud and talk to a live 3D simulation of it. Every simulation is checked against the analytic solution, and any mismatch is shown on screen.
 
-Halloween at Imperial: Gemini Edition, Track 02. Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Halloween at Imperial: Gemini Edition, Track 02. Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and the 3D CAD asset specification in [CAD_MODELS.md](CAD_MODELS.md).
 
 ## Local development
 
@@ -24,11 +24,11 @@ Run `npm run lint && npm test && npm run build` before opening a pull request. T
 
 | Функция | Готово, когда |
 |---|---|
-| Фото рисунка превращается в `SceneSpec` | Плоскость распознаётся на эталонных фото, неверная схема отклоняется |
-| Экран подтверждения распознанного | Видны тип, значения и допущения, можно подтвердить или снять заново |
+| Голосовое описание превращается в `SceneSpec` | Live вызывает `set_scene`, сцена проверяется, неверная схема отклоняется |
+| Экран подтверждения распознанного | Видны тип, значения и допущения, можно подтвердить или исправить голосом |
 | 3D-симуляция плоскости: шар и блок | Движение соответствует параметрам сцены |
 | Аналитическая проверка и вердикт | На экране формула, симуляция, расхождение и вердикт |
-| Голосовой разговор с камерой | Можно задать вопрос и перебить ассистента |
+| Голосовой разговор в браузере | Можно задать вопрос и перебить ассистента, сессия не обрывается за время демо |
 | Сценарий прогноза и «а если масса вдвое больше» | Прогноз до запуска, изменение параметра, новый запуск и объяснение по числам |
 | Защита ключа и входных данных | Ключа нет в браузере, токен короткоживущий, размер и тип файла проверяются |
 | Запись прогона и режим replay | Демо проходит без сети |
@@ -36,7 +36,7 @@ Run `npm run lint && npm test && npm run build` before opening a pull request. T
 
 ### P1. Если успеем, по порядку
 
-1. Постановка задачи голосом, без рисунка
+1. Рисунок: камера и анализ фото (backend уже готов, нужен интерфейс)
 2. Сценарий снаряда
 3. Деплой frontend и backend по HTTPS
 4. Интерфейс для проектора и визуальная полировка

@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-10-31T13:49:00.360Z",
+  "strategy": "pre-rendered-glb-zero-wait",
+  "models": [
+    {
+      "file": "/models/incline_ramp_rig.glb",
+      "bytes": 3212,
+      "description": "P0 Inclined Plane CAD Bench"
+    },
+    {
+      "file": "/models/rolling_ball_cad.glb",
+      "bytes": 64912,
+      "description": "P0 Rolling Sphere with Brass Meridian Stripes"
+    },
+    {
+      "file": "/models/sliding_block_cad.glb",
+      "bytes": 6720,
+      "description": "P0 Sliding Block with Brass Weights"
+    },
+    {
+      "file": "/models/projectile_launcher_rig.glb",
+      "bytes": 6752,
+      "description": "P1 Articulated Projectile Cannon Rig"
+    },
+    {
+      "file": "/models/cloud_chamber_rig.glb",
+      "bytes": 37988,
+      "description": "Rutherford Cloud Chamber + Helmholtz Coils"
+    },
+    {
+      "file": "/models/spring_mass_rig.glb",
+      "bytes": 37068,
+      "description": "Hooke's Law Spring-Mass Harmonic Oscillator"
+    }
+  ]
+}

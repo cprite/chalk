@@ -1,0 +1,11 @@
+{
+  "scenario": "incline",
+  "body": "ball",
+  "mass": 1.0,
+  "angle_deg": 30.0,
+  "length": 2.0,
+  "friction": 0.5,
+  "gravity": 9.81,
+  "confidence": 1.0,
+  "assumptions": []
+}

@@ -6,7 +6,7 @@ import { ResultsPanel } from "./components/ResultsPanel";
 import { SketchPanel } from "./components/SketchPanel";
 import { VoiceAssistant } from "./components/VoiceAssistant";
 import { analyzeSketch, createDemoScene, verifySimulation } from "./integrations/mock";
-import { completeVoiceTurn } from "./integrations/live";
+import { executeVoiceTurn } from "./integrations/live";
 import { dismissPresentationOverlay } from "./presentation";
 import type { PresentationOverlay } from "./presentation";
 import type { InclineSceneSpec, VerificationVerdict, VoiceState } from "./types";
@@ -30,7 +30,10 @@ export default function App() {
   const [inputError, setInputError] = useState<string | null>(null);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState("What happens if I make the ramp steeper?");
+  const [transcript, setTranscript] = useState("What happens if I double the mass?");
+  const [assistantResponse, setAssistantResponse] = useState(
+    "Try a prediction first: if we double the mass, do you expect the ball to arrive sooner?",
+  );
   const [isPresentationMode, setIsPresentationMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [presentationOverlay, setPresentationOverlay] = useState<PresentationOverlay>(null);
@@ -94,10 +97,10 @@ export default function App() {
     }
   };
 
-  const runVerification = async () => {
+  const runVerification = async (sceneToVerify = scene) => {
     setIsVerifying(true);
     try {
-      setVerdict(await verifySimulation(scene));
+      setVerdict(await verifySimulation(sceneToVerify));
     } finally {
       setIsVerifying(false);
     }
@@ -108,24 +111,37 @@ export default function App() {
     if (!isPlaying) void runVerification();
   };
 
+  const handleVoiceCommand = async (command: string) => {
+    setVoiceError(null);
+    setTranscript(command);
+    try {
+      const turn = await executeVoiceTurn(command, setVoiceState, scene);
+      setAssistantResponse(turn.text);
+      setVoiceHistory((history) => [...history, { speaker: "You", text: command }, { speaker: "Chalk", text: turn.text }]);
+      const nextScene = turn.updatedScene && Object.keys(turn.updatedScene).length > 0
+        ? { ...scene, ...turn.updatedScene }
+        : scene;
+      if (nextScene !== scene) {
+        setScene(nextScene);
+        setVerdict(null);
+      }
+      if (turn.shouldPlay !== undefined) {
+        setIsPlaying(turn.shouldPlay);
+        if (turn.shouldPlay) void runVerification(nextScene);
+      }
+    } catch (error) {
+      setVoiceState("error");
+      setVoiceError(error instanceof Error ? error.message : "Voice command failed. Try again.");
+    }
+  };
+
   const toggleVoice = () => {
     if (voiceState === "listening") {
-      void (async () => {
-        const prompt = transcript;
-        try {
-          const answer = await completeVoiceTurn(prompt, setVoiceState);
-          setTranscript(answer);
-          setVoiceHistory((history) => [...history, { speaker: "You", text: prompt }, { speaker: "Chalk", text: answer }]);
-        } catch (error) {
-          setVoiceState("error");
-          setVoiceError(error instanceof Error ? error.message : "Voice connection failed. Try again.");
-        }
-      })();
+      void handleVoiceCommand(transcript);
       return;
     }
     setVoiceError(null);
     setVoiceState("listening");
-    setTranscript("What happens if I make the ramp steeper?");
   };
 
   const enterPresentationMode = async () => {
@@ -160,6 +176,11 @@ export default function App() {
     setVerdict(null);
   };
 
+  const changeBody = (body: "ball" | "block") => {
+    setScene((current) => ({ ...current, body }));
+    setVerdict(null);
+  };
+
   const resetScene = () => {
     setScene(initialScene);
     setIsPlaying(false);
@@ -180,10 +201,12 @@ export default function App() {
           voiceState={voiceState}
           voiceError={voiceError}
           transcript={transcript}
+          assistantResponse={assistantResponse}
           voiceHistory={voiceHistory}
           overlay={presentationOverlay}
           onOverlayChange={setPresentationOverlay}
           onChangeScene={changeScene}
+          onChangeBody={changeBody}
           onTogglePlay={togglePlay}
           onReset={resetScene}
           onToggleVoice={toggleVoice}
@@ -194,7 +217,7 @@ export default function App() {
       <header className="topbar">
         <a className="wordmark" href="#top" aria-label="Chalk home">chalk<span>.</span></a>
         <p className="tagline">Physics you can talk to.</p>
-        <div className="mode-badge"><i /> Demo-safe mock mode</div>
+        <div className="mode-badge"><i /> Live CAD & Voice Lab</div>
       </header>
 
       <section className="intro" id="top">
@@ -229,7 +252,11 @@ export default function App() {
               </button>
             </div>
           </div>
-          <PhysicsScene scene={scene} isPlaying={isPlaying} />
+          <PhysicsScene
+            scene={scene}
+            isPlaying={isPlaying}
+            onChangeBody={changeBody}
+          />
           <Controls
             scene={scene}
             isPlaying={isPlaying}
@@ -242,8 +269,10 @@ export default function App() {
         <VoiceAssistant
           state={voiceState}
           transcript={transcript}
+          assistantResponse={assistantResponse}
           error={voiceError}
           onToggleMicrophone={toggleVoice}
+          onSubmitCommand={handleVoiceCommand}
           onRetry={() => { setVoiceError(null); setVoiceState("idle"); }}
         />
       </section>

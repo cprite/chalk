@@ -19,10 +19,12 @@ type PresentationStageProps = {
   voiceState: VoiceState;
   voiceError: string | null;
   transcript: string;
+  assistantResponse: string;
   voiceHistory: VoiceMessage[];
   overlay: PresentationOverlay;
   onOverlayChange: (overlay: PresentationOverlay) => void;
   onChangeScene: (field: "angle_deg" | "mass" | "gravity", value: number) => void;
+  onChangeBody: (body: "ball" | "block") => void;
   onTogglePlay: () => void;
   onReset: () => void;
   onToggleVoice: () => void;
@@ -46,10 +48,12 @@ export function PresentationStage({
   voiceState,
   voiceError,
   transcript,
+  assistantResponse,
   voiceHistory,
   overlay,
   onOverlayChange,
   onChangeScene,
+  onChangeBody,
   onTogglePlay,
   onReset,
   onToggleVoice,
@@ -123,7 +127,7 @@ export function PresentationStage({
       </header>
 
       <div className="presentation-scene">
-        <PhysicsScene scene={scene} isPlaying={isPlaying} />
+        <PhysicsScene scene={scene} isPlaying={isPlaying} onChangeBody={onChangeBody} />
       </div>
 
       <footer className="presentation-footer">
@@ -144,7 +148,7 @@ export function PresentationStage({
           </button>
           <div className={`presentation-caption presentation-caption--${voiceState}`} aria-live="polite">
             <span>{voiceLabels[voiceState]}</span>
-            <p>{transcript}</p>
+            <p>{voiceState === "speaking" ? assistantResponse : transcript}</p>
             {voiceError ? (
               <div className="presentation-error" role="alert">
                 <p>{voiceError}</p>
