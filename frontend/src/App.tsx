@@ -269,14 +269,15 @@ export default function App() {
   };
 
   const speech = useSpeechRecognition({
-    onInterim: setTranscript,
+    onTranscribing: () => setVoiceState("thinking"),
     onFinal: (text) => void handleVoiceCommand(text),
+    onNothingHeard: () => {
+      setVoiceState("idle");
+      setVoiceError("I didn't catch that. Try again, closer to the microphone.");
+    },
     onError: (message) => {
       setVoiceState("error");
       setVoiceError(message);
-    },
-    onEnd: (heard) => {
-      if (!heard) setVoiceState((current) => (current === "listening" ? "idle" : current));
     },
   });
 
@@ -288,7 +289,8 @@ export default function App() {
     }
     setVoiceError(null);
     setTranscript("");
-    if (speech.start()) setVoiceState("listening");
+    setVoiceState("listening");
+    void speech.start();
   };
 
   const enterPresentationMode = async () => {

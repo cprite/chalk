@@ -100,3 +100,13 @@ def test_prediction_and_session_journal_and_replay_save(monkeypatch, tmp_path):
 def test_followup_api_rejects_invalid_scene():
     r = client.post("/api/v1/scenes/followup", json={"scene": {"scenario": "nope"}, "text": "x"})
     assert r.status_code == 400 and r.json()["code"] == "invalid_scene"
+
+
+def test_transcribe_rejects_bad_input_and_returns_text():
+    from app.transcribe import transcribe
+    with pytest.raises(AnalysisError):
+        transcribe(b"x", "video/mp4", Fake())
+    with pytest.raises(AnalysisError):
+        transcribe(b"", "audio/webm", Fake())
+    fake = SimpleNamespace(models=SimpleNamespace(generate_content=lambda **_: SimpleNamespace(text=" hi ")))
+    assert transcribe(b"x", "audio/webm;codecs=opus", fake) == "hi"

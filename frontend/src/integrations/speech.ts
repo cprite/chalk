@@ -1,84 +1,86 @@
 import { useCallback, useEffect, useRef } from "react";
+import { transcribeAudio } from "./backend";
 
 type SpeechHandlers = {
-  onInterim: (text: string) => void;
+  onTranscribing: () => void;
   onFinal: (text: string) => void;
+  onNothingHeard: () => void;
   onError: (message: string) => void;
-  /** Recognition ended. `heard` is false when no final phrase arrived. */
-  onEnd: (heard: boolean) => void;
 };
 
-const ERROR_MESSAGES: Record<string, string> = {
-  "not-allowed": "Chrome blocked the microphone. Allow it next to the address bar, or type instead.",
-  "service-not-allowed": "Chrome blocked the microphone. Allow it next to the address bar, or type instead.",
-  "audio-capture": "No microphone found. Connect one, or type instead.",
-  network: "Speech recognition needs internet. Check the connection, or type instead.",
+const MAX_RECORDING_MS = 20000;
+
+const MIC_ERRORS: Record<string, string> = {
+  NotAllowedError: "The browser blocked the microphone. Allow it next to the address bar, or type instead.",
+  NotFoundError: "No microphone found. Connect one, or type instead.",
+  NotReadableError: "Another app is using the microphone. Close it, or type instead.",
 };
 
 /**
- * One browser speech session per press of the mic. Handlers live in a ref so that
- * re-rendering the app never recreates recognition and cuts the speaker off.
+ * Records one phrase per press of the mic and has the backend transcribe it with Gemini.
+ * Browser speech recognition is avoided because it fails on networks that block Google's speech servers.
  */
 export function useSpeechRecognition(handlers: SpeechHandlers) {
   const handlersRef = useRef(handlers);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recognitionRef = useRef<any>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopRequestedRef = useRef(false);
 
   useEffect(() => {
     handlersRef.current = handlers;
   });
 
-  useEffect(() => () => recognitionRef.current?.abort?.(), []);
-
-  const start = useCallback(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!Recognition) {
-      handlersRef.current.onError("Voice input needs Chrome. Type your question instead.");
-      return false;
-    }
-
-    const recognition = new Recognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-    let heard = false;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onresult = (event: any) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const results = Array.from(event.results) as any[];
-      const text = results.map((result) => result[0].transcript).join("").trim();
-      if (!text) return;
-      if (results[results.length - 1].isFinal) {
-        heard = true;
-        handlersRef.current.onFinal(text);
-      } else {
-        handlersRef.current.onInterim(text);
-      }
-    };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    recognition.onerror = (event: any) => {
-      const message = ERROR_MESSAGES[event.error];
-      if (message) handlersRef.current.onError(message);
-    };
-    recognition.onend = () => {
-      recognitionRef.current = null;
-      handlersRef.current.onEnd(heard);
-    };
-
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-      return true;
-    } catch {
-      recognitionRef.current = null;
-      handlersRef.current.onError("Could not start the microphone. Try again, or type instead.");
-      return false;
-    }
+  const stop = useCallback(() => {
+    stopRequestedRef.current = true;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
   }, []);
 
-  const stop = useCallback(() => recognitionRef.current?.stop(), []);
+  useEffect(() => stop, [stop]);
+
+  const start = useCallback(async () => {
+    stopRequestedRef.current = false;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      handlersRef.current.onError("This browser cannot record audio. Type your question instead.");
+      return;
+    }
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (error) {
+      const name = error instanceof Error ? error.name : "";
+      handlersRef.current.onError(MIC_ERRORS[name] ?? "Could not start the microphone. Type your question instead.");
+      return;
+    }
+
+    // The user pressed stop while the browser was still opening the microphone.
+    if (stopRequestedRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      handlersRef.current.onNothingHeard();
+      return;
+    }
+
+    const recorder = new MediaRecorder(stream);
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+    recorder.onstop = async () => {
+      stream.getTracks().forEach((track) => track.stop());
+      recorderRef.current = null;
+      handlersRef.current.onTranscribing();
+      try {
+        const text = await transcribeAudio(new Blob(chunks, { type: recorder.mimeType }));
+        if (text) handlersRef.current.onFinal(text);
+        else handlersRef.current.onNothingHeard();
+      } catch (error) {
+        handlersRef.current.onError(error instanceof Error ? error.message : "Could not transcribe that. Type instead.");
+      }
+    };
+    recorderRef.current = recorder;
+    recorder.start();
+    timerRef.current = setTimeout(stop, MAX_RECORDING_MS);
+  }, [stop]);
 
   return { start, stop };
 }

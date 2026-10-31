@@ -15,6 +15,7 @@ from .followup import followup
 from .patch import apply_patch
 from .replay import SESSION_ID_REGEX, load_session, save_session
 from .trace import log_trace, read_session
+from .transcribe import MAX_AUDIO_BYTES, transcribe
 from .verify import verify
 
 logger = logging.getLogger(__name__)
@@ -168,6 +169,18 @@ async def followup_endpoint(request: Request, payload: FollowupPayload):
         return error_response("invalid_scene", "The current scene is not valid", trace_id)
     log_trace(trace_id, "followup", get_session_id(request), scene=result["scene"], data={"text": payload.text, "changes": result["changes"], "reply": result.get("reply")})
     return {"scene": result["scene"].model_dump(), "changes": result["changes"], "kind": result["kind"], "reply": result.get("reply"), "trace_id": trace_id}
+
+
+@router.post("/api/v1/transcribe")
+async def transcribe_endpoint(request: Request, audio: UploadFile = File(...)):
+    trace_id = get_trace_id(request)
+    try:
+        text = transcribe(await audio.read(MAX_AUDIO_BYTES + 1), audio.content_type or "")
+    except AnalysisError as e:
+        status_code = 503 if e.code == "model_unavailable" else 400
+        return error_response(e.code, e.message, trace_id, status_code=status_code)
+    log_trace(trace_id, "transcribe", get_session_id(request), data={"text": text})
+    return {"text": text, "trace_id": trace_id}
 
 
 @router.post("/api/v1/predictions")
