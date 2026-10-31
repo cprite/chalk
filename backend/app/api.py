@@ -10,9 +10,11 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from .analyze import AnalysisError, analyze_image, analyze_text
 from .images import MAX_IMAGE_SIZE_BYTES, ImageError, normalize_image
+from .explain import explain
+from .followup import followup
 from .patch import apply_patch
-from .replay import load_session
-from .trace import log_trace
+from .replay import SESSION_ID_REGEX, load_session, save_session
+from .trace import log_trace, read_session
 from .verify import verify
 
 logger = logging.getLogger(__name__)
@@ -30,6 +32,34 @@ class VerifyPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
     scene: dict[str, Any]
     measured: dict[str, Any]
+
+
+class FollowupPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scene: dict[str, Any]
+    text: str
+
+
+class ExplainPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    scene: dict[str, Any]
+    verification: dict[str, Any]
+    prediction: Optional[str] = None
+
+
+class PredictionPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    text: str
+
+
+class SaveReplayPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    session_id: str
+
+
+def get_session_id(request: Request) -> str:
+    session_id = request.headers.get("x-session-id", "default")
+    return session_id if SESSION_ID_REGEX.match(session_id) else "default"
 
 
 def get_trace_id(request: Request) -> str:
@@ -83,10 +113,12 @@ async def analyze_scene(
         duration_ms = round((time.perf_counter() - t0) * 1000.0, 2)
         log_trace(
             trace_id=trace_id,
+            session_id=get_session_id(request),
             event="analyze",
             duration_ms=duration_ms,
             model=os.getenv("GEMINI_REASONING_MODEL", "gemini-4-argon"),
             scene=scene,
+            data={"text": text.strip() if has_text else None},
         )
         return {"scene": scene.model_dump(), "trace_id": trace_id}
     except ImageError as e:
@@ -116,11 +148,59 @@ async def verify_endpoint(request: Request, payload: VerifyPayload):
     trace_id = get_trace_id(request)
     try:
         result = verify(payload.scene, payload.measured)
+        log_trace(trace_id, "verify", get_session_id(request), data=result)
         return result
     except (ValueError, ValidationError) as e:
         return error_response("validation_error", str(e), trace_id, status_code=400)
     except Exception as e:
         return error_response("validation_error", str(e), trace_id, status_code=400)
+
+
+@router.post("/api/v1/scenes/followup")
+async def followup_endpoint(request: Request, payload: FollowupPayload):
+    trace_id = get_trace_id(request)
+    try:
+        result = followup(payload.scene, payload.text)
+    except AnalysisError as e:
+        status_code = 503 if e.code == "model_unavailable" else 400
+        return error_response(e.code, e.message, trace_id, status_code=status_code)
+    except (ValueError, ValidationError):
+        return error_response("invalid_scene", "The current scene is not valid", trace_id)
+    log_trace(trace_id, "followup", get_session_id(request), scene=result["scene"], data={"text": payload.text, "changes": result["changes"]})
+    return {"scene": result["scene"].model_dump(), "changes": result["changes"], "kind": result["kind"], "trace_id": trace_id}
+
+
+@router.post("/api/v1/predictions")
+async def record_prediction(request: Request, payload: PredictionPayload):
+    # Stored before the run, so the journal shows the prediction was not written afterwards.
+    trace_id = get_trace_id(request)
+    if not 0 < len(payload.text) <= 500:
+        return error_response("invalid_prediction", "Prediction must be 1 to 500 characters", trace_id)
+    log_trace(trace_id, "prediction", get_session_id(request), data={"text": payload.text})
+    return {"recorded": True, "trace_id": trace_id}
+
+
+@router.post("/api/v1/explain")
+async def explain_endpoint(request: Request, payload: ExplainPayload):
+    trace_id = get_trace_id(request)
+    text, source = explain(payload.scene, payload.verification, payload.prediction)
+    log_trace(trace_id, "explain", get_session_id(request), data={"text": text, "source": source})
+    return {"text": text, "source": source, "trace_id": trace_id}
+
+
+@router.post("/api/v1/replay/{id}")
+async def save_replay(id: str, request: Request, payload: SaveReplayPayload):
+    trace_id = get_trace_id(request)
+    if id == "default":
+        return error_response("invalid_id", "'default' is reserved", trace_id)
+    try:
+        events = read_session(payload.session_id)
+        save_session(id, {"session_id": payload.session_id, "events": events})
+    except ValueError as e:
+        return error_response("invalid_id", str(e), trace_id)
+    except FileNotFoundError as e:
+        return error_response("not_found", str(e), trace_id, status_code=404)
+    return {"saved": id, "events": len(events), "trace_id": trace_id}
 
 
 @router.get("/api/v1/replay/{id}")

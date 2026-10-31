@@ -33,3 +33,22 @@ def apply_patch(scene: Any, field: str, value: Any) -> SceneSpec:
 
     data[field] = value
     return SceneAdapter.validate_python(data)
+
+
+# Assumptions that stop being true once the user sets the field themselves.
+STALE_NOTES = {
+    "mass": ("Default: mass",),
+    "length": ("Default: slope length",),
+    "friction": ("Default: ball rolls", "Default: frictionless"),
+    "gravity": ("Default: g",),
+}
+
+
+def apply_changes(scene: Any, changes: list[tuple[str, Any]]) -> SceneSpec:
+    """Apply several changes atomically: one invalid change rejects them all."""
+    current = SceneAdapter.validate_python(scene) if isinstance(scene, dict) else scene
+    for field, value in changes:
+        current = apply_patch(current, field, value)
+        stale = STALE_NOTES.get(field, ())
+        current.assumptions = [a for a in current.assumptions if not a.startswith(stale)] if stale else current.assumptions
+    return current
