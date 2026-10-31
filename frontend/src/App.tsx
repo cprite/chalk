@@ -1,16 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controls } from "./components/Controls";
 import { PhysicsScene } from "./components/PhysicsScene";
+import { PresentationStage } from "./components/PresentationStage";
 import { ResultsPanel } from "./components/ResultsPanel";
 import { SketchPanel } from "./components/SketchPanel";
 import { VoiceAssistant } from "./components/VoiceAssistant";
 import { analyzeSketch, createDemoScene, verifySimulation } from "./integrations/mock";
 import { executeVoiceTurn } from "./integrations/live";
+import { dismissPresentationOverlay } from "./presentation";
+import type { PresentationOverlay } from "./presentation";
 import type { InclineSceneSpec, VerificationVerdict, VoiceState } from "./types";
 
 const initialScene = createDemoScene();
 
+type VoiceMessage = {
+  speaker: "You" | "Chalk";
+  text: string;
+};
+
 export default function App() {
+  const presentationRootRef = useRef<HTMLElement>(null);
   const [scene, setScene] = useState<InclineSceneSpec>(initialScene);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -22,13 +31,43 @@ export default function App() {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState("What happens if I double the mass?");
-  const [assistantResponse, setAssistantResponse] = useState<string>(
-    "Try a prediction first: if we double the mass, do you expect the ball to arrive sooner?"
+  const [assistantResponse, setAssistantResponse] = useState(
+    "Try a prediction first: if we double the mass, do you expect the ball to arrive sooner?",
   );
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [presentationOverlay, setPresentationOverlay] = useState<PresentationOverlay>(null);
+  const [voiceHistory, setVoiceHistory] = useState<VoiceMessage[]>([]);
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const isRootFullscreen = document.fullscreenElement === presentationRootRef.current;
+      setIsFullscreen(isRootFullscreen);
+      setIsPresentationMode(isRootFullscreen);
+      if (!isRootFullscreen) setPresentationOverlay(dismissPresentationOverlay());
+    };
+
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreenState);
+  }, []);
+
+  useEffect(() => {
+    const exitWindowedPresentation = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || !isPresentationMode) return;
+      if (presentationOverlay) {
+        setPresentationOverlay(dismissPresentationOverlay());
+      } else if (!isFullscreen) {
+        setIsPresentationMode(false);
+      }
+    };
+
+    window.addEventListener("keydown", exitWindowedPresentation);
+    return () => window.removeEventListener("keydown", exitWindowedPresentation);
+  }, [isFullscreen, isPresentationMode, presentationOverlay]);
 
   const selectFile = (selected: File) => {
     setInputError(null);
@@ -58,10 +97,10 @@ export default function App() {
     }
   };
 
-  const runVerification = async () => {
+  const runVerification = async (sceneToVerify = scene) => {
     setIsVerifying(true);
     try {
-      setVerdict(await verifySimulation(scene));
+      setVerdict(await verifySimulation(sceneToVerify));
     } finally {
       setIsVerifying(false);
     }
@@ -78,13 +117,17 @@ export default function App() {
     try {
       const turn = await executeVoiceTurn(command, setVoiceState, scene);
       setAssistantResponse(turn.text);
-      if (turn.updatedScene && Object.keys(turn.updatedScene).length > 0) {
-        setScene((current) => ({ ...current, ...turn.updatedScene }));
+      setVoiceHistory((history) => [...history, { speaker: "You", text: command }, { speaker: "Chalk", text: turn.text }]);
+      const nextScene = turn.updatedScene && Object.keys(turn.updatedScene).length > 0
+        ? { ...scene, ...turn.updatedScene }
+        : scene;
+      if (nextScene !== scene) {
+        setScene(nextScene);
         setVerdict(null);
       }
       if (turn.shouldPlay !== undefined) {
         setIsPlaying(turn.shouldPlay);
-        if (turn.shouldPlay) void runVerification();
+        if (turn.shouldPlay) void runVerification(nextScene);
       }
     } catch (error) {
       setVoiceState("error");
@@ -101,8 +144,76 @@ export default function App() {
     setVoiceState("listening");
   };
 
+  const enterPresentationMode = async () => {
+    setIsPresentationMode(true);
+    const root = presentationRootRef.current;
+    if (!root?.requestFullscreen) return;
+
+    try {
+      await root.requestFullscreen();
+    } catch {
+      setIsFullscreen(false);
+    }
+  };
+
+  const exitPresentationMode = async () => {
+    setPresentationOverlay(dismissPresentationOverlay());
+    if (document.fullscreenElement === presentationRootRef.current && document.exitFullscreen) {
+      try {
+        await document.exitFullscreen();
+      } catch {
+        setIsFullscreen(false);
+        setIsPresentationMode(false);
+      }
+      return;
+    }
+
+    setIsPresentationMode(false);
+  };
+
+  const changeScene = (field: "angle_deg" | "mass" | "gravity", value: number) => {
+    setScene((current) => ({ ...current, [field]: value }));
+    setVerdict(null);
+  };
+
+  const changeBody = (body: "ball" | "block") => {
+    setScene((current) => ({ ...current, body }));
+    setVerdict(null);
+  };
+
+  const resetScene = () => {
+    setScene(initialScene);
+    setIsPlaying(false);
+    setVerdict(null);
+  };
+
   return (
-    <main className="app-shell">
+    <main
+      className={`app-shell${isPresentationMode ? " app-shell--presentation" : ""}`}
+      ref={presentationRootRef}
+    >
+      {isPresentationMode ? (
+        <PresentationStage
+          scene={scene}
+          isPlaying={isPlaying}
+          isVerifying={isVerifying}
+          verdict={verdict}
+          voiceState={voiceState}
+          voiceError={voiceError}
+          transcript={transcript}
+          assistantResponse={assistantResponse}
+          voiceHistory={voiceHistory}
+          overlay={presentationOverlay}
+          onOverlayChange={setPresentationOverlay}
+          onChangeScene={changeScene}
+          onChangeBody={changeBody}
+          onTogglePlay={togglePlay}
+          onReset={resetScene}
+          onToggleVoice={toggleVoice}
+          onRetryVoice={() => { setVoiceError(null); setVoiceState("idle"); }}
+          onExit={() => void exitPresentationMode()}
+        />
+      ) : <>
       <header className="topbar">
         <a className="wordmark" href="#top" aria-label="Chalk home">chalk<span>.</span></a>
         <p className="tagline">Physics you can talk to.</p>
@@ -129,22 +240,29 @@ export default function App() {
         <section className="simulation-panel" aria-labelledby="simulation-title">
           <div className="simulation-heading">
             <div><p className="eyebrow">02 / EXPERIMENT</p><h2 id="simulation-title">Inclined plane</h2></div>
-            <span className="live-chip"><i /> {isPlaying ? "Running" : "Ready"}</span>
+            <div className="simulation-actions">
+              <span className="live-chip"><i /> {isPlaying ? "Running" : "Ready"}</span>
+              <button
+                className="button button--secondary presentation-button"
+                type="button"
+                onClick={() => void (isPresentationMode ? exitPresentationMode() : enterPresentationMode())}
+                aria-pressed={isPresentationMode}
+              >
+                <span aria-hidden="true">{isPresentationMode ? "↙" : "⛶"}</span> {isPresentationMode ? "Exit presentation" : "Present"}
+              </button>
+            </div>
           </div>
           <PhysicsScene
             scene={scene}
             isPlaying={isPlaying}
-            onChangeBody={(body) => {
-              setScene((current) => ({ ...current, body }));
-              setVerdict(null);
-            }}
+            onChangeBody={changeBody}
           />
           <Controls
             scene={scene}
             isPlaying={isPlaying}
-            onChange={(field, value) => { setScene((current) => ({ ...current, [field]: value })); setVerdict(null); }}
+            onChange={changeScene}
             onTogglePlay={togglePlay}
-            onReset={() => { setScene(initialScene); setIsPlaying(false); setVerdict(null); }}
+            onReset={resetScene}
           />
         </section>
 
@@ -160,6 +278,7 @@ export default function App() {
       </section>
 
       <ResultsPanel scene={scene} verdict={verdict} isVerifying={isVerifying} />
+      </>}
     </main>
   );
 }
