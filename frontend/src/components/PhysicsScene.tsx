@@ -199,7 +199,13 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
     threeScene.add(rimLight);
 
     if (!hologramMode) {
-      const grid = new THREE.GridHelper(10, 20, 0x9ab0a1, 0xcbd8cd);
+      const isCollision = cadMode === "collision_1d";
+      const grid = new THREE.GridHelper(
+        isCollision ? 140 : 10,
+        isCollision ? 140 : 20,
+        0x9ab0a1,
+        0xcbd8cd
+      );
       grid.position.y = -0.12;
       threeScene.add(grid);
     }
@@ -665,10 +671,18 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
         collisionTrack.cartA.position.x = curXA;
         collisionTrack.cartB.position.x = curXB;
 
-        // Camera smoothly tracks the center-of-mass so both particles remain in full view
+        // Dynamic camera tracking: centers on mid-point between carts and adjusts distance
         const xMid = (curXA + curXB) / 2;
-        if (!hologramMode && controlsRef.current) {
-          controlsRef.current.target.x = THREE.MathUtils.lerp(controlsRef.current.target.x, xMid * 0.5, 0.08);
+        const xSep = Math.abs(curXB - curXA);
+        if (!hologramMode && controlsRef.current && cameraRef.current) {
+          const targetX = THREE.MathUtils.lerp(controlsRef.current.target.x, xMid, 0.05);
+          const dx = targetX - controlsRef.current.target.x;
+          controlsRef.current.target.x = targetX;
+          cameraRef.current.position.x += dx;
+
+          // Dynamically adjust camera Z distance so both carts are always framed in view
+          const idealZ = Math.max(4.6, Math.min(16.0, xSep * 0.7 + 3.4));
+          cameraRef.current.position.z = THREE.MathUtils.lerp(cameraRef.current.position.z, idealZ, 0.04);
         }
 
         if (showVectors) {
