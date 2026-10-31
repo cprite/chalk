@@ -1,4 +1,4 @@
-import type { GenerativeSceneSpec, InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict } from "../types";
+import type { Collision1DSceneSpec, GenerativeSceneSpec, InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict } from "../types";
 
 type ResultsPanelProps = {
   scene: SceneSpec;
@@ -10,8 +10,10 @@ export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps)
   const status = verdict?.status ?? "not_applicable";
   const isSpring = scene.scenario === "spring";
   const isGenerative = scene.scenario === "generative";
+  const isCollision = scene.scenario === "collision_1d";
   const springScene = isSpring ? (scene as SpringSceneSpec) : null;
   const genScene = isGenerative ? (scene as GenerativeSceneSpec) : null;
+  const collisionScene = isCollision ? (scene as Collision1DSceneSpec) : null;
   const inclineScene = scene.scenario === "incline" ? (scene as InclineSceneSpec) : null;
   const isStatic = verdict?.status === "match" && verdict.expectedSeconds === 0;
   const seconds = (value: number | undefined) => (verdict && value ? `${value.toFixed(2)} s` : isStatic ? "At rest" : "—");
@@ -49,6 +51,14 @@ export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps)
             <span>{genScene.primary_law}</span>
             <strong>{genScene.formula || "F_net = m·a"}</strong>
             <small>{genScene.title}</small>
+          </>
+        ) : isCollision && collisionScene ? (
+          <>
+            <span>1D Momentum & Restitution</span>
+            <strong>v_A' = ((m_A − e·m_B)v_A + (1+e)m_B·v_B) / (m_A + m_B)</strong>
+            <small>
+              m_A = {collisionScene.mass_a}kg, m_B = {collisionScene.mass_b}kg · v_A = {collisionScene.velocity_a}m/s, v_B = {collisionScene.velocity_b}m/s (e = {collisionScene.restitution})
+            </small>
           </>
         ) : inclineScene?.body === "ball" ? (
           <>

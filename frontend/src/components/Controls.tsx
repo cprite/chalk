@@ -1,4 +1,4 @@
-import type { GenerativeSceneSpec, InclineSceneSpec, SceneSpec, SpringSceneSpec } from "../types";
+import type { Collision1DSceneSpec, GenerativeSceneSpec, InclineSceneSpec, SceneSpec, SpringSceneSpec } from "../types";
 
 type ControlsProps = {
   scene: SceneSpec;
@@ -11,8 +11,10 @@ type ControlsProps = {
 export function Controls({ scene, isPlaying, onChange, onTogglePlay, onReset }: ControlsProps) {
   const isSpring = scene.scenario === "spring";
   const isGenerative = scene.scenario === "generative";
+  const isCollision = scene.scenario === "collision_1d";
   const springScene = isSpring ? (scene as SpringSceneSpec) : null;
   const genScene = isGenerative ? (scene as GenerativeSceneSpec) : null;
+  const collisionScene = isCollision ? (scene as Collision1DSceneSpec) : null;
   const inclineScene = scene.scenario === "incline" ? (scene as InclineSceneSpec) : null;
 
   return (
@@ -140,6 +142,83 @@ export function Controls({ scene, isPlaying, onChange, onTogglePlay, onReset }: 
               />
               <output>
                 {genScene.gravity.toFixed(1)} <small>m/s²</small>
+              </output>
+            </label>
+          </>
+        ) : isCollision && collisionScene ? (
+          <>
+            <label className="control-row">
+              <span>Mass A</span>
+              <input
+                type="range"
+                min={0.5}
+                max={50}
+                step={0.5}
+                value={collisionScene.mass_a}
+                onChange={(event) => onChange("mass_a", Number(event.target.value))}
+              />
+              <output>
+                {collisionScene.mass_a} <small>kg</small>
+              </output>
+            </label>
+
+            <label className="control-row">
+              <span>Mass B</span>
+              <input
+                type="range"
+                min={0.5}
+                max={50}
+                step={0.5}
+                value={collisionScene.mass_b}
+                onChange={(event) => onChange("mass_b", Number(event.target.value))}
+              />
+              <output>
+                {collisionScene.mass_b} <small>kg</small>
+              </output>
+            </label>
+
+            <label className="control-row">
+              <span>Velocity A</span>
+              <input
+                type="range"
+                min={-15}
+                max={15}
+                step={0.5}
+                value={collisionScene.velocity_a}
+                onChange={(event) => onChange("velocity_a", Number(event.target.value))}
+              />
+              <output>
+                {collisionScene.velocity_a.toFixed(1)} <small>m/s</small>
+              </output>
+            </label>
+
+            <label className="control-row">
+              <span>Velocity B</span>
+              <input
+                type="range"
+                min={-15}
+                max={15}
+                step={0.5}
+                value={collisionScene.velocity_b}
+                onChange={(event) => onChange("velocity_b", Number(event.target.value))}
+              />
+              <output>
+                {collisionScene.velocity_b.toFixed(1)} <small>m/s</small>
+              </output>
+            </label>
+
+            <label className="control-row">
+              <span>Restitution</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={collisionScene.restitution}
+                onChange={(event) => onChange("restitution", Number(event.target.value))}
+              />
+              <output>
+                {collisionScene.restitution.toFixed(2)} <small>(e)</small>
               </output>
             </label>
           </>
