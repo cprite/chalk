@@ -15,6 +15,7 @@ const MIN_SPEECH_LEVEL = 0.01;
 /** Tracks the loudest moment of a stream. Call the returned function to get it and stop listening. */
 function watchLevel(stream: MediaStream) {
   const context = new AudioContext();
+  void context.resume();
   const analyser = context.createAnalyser();
   analyser.fftSize = 2048;
   context.createMediaStreamSource(stream).connect(analyser);
@@ -26,8 +27,10 @@ function watchLevel(stream: MediaStream) {
   }, 50);
   return () => {
     clearInterval(timer);
+    // If the browser kept the analyser suspended the level means nothing, so never block the recording.
+    const measured = context.state === "running";
     void context.close();
-    return peak;
+    return measured ? peak : Infinity;
   };
 }
 
