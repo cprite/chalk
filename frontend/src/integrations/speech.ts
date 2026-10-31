@@ -9,6 +9,27 @@ type SpeechHandlers = {
 };
 
 const MAX_RECORDING_MS = 20000;
+// Below this peak RMS level the recording is silence. The model invents words for silence, so it is never sent.
+const MIN_SPEECH_LEVEL = 0.01;
+
+/** Tracks the loudest moment of a stream. Call the returned function to get it and stop listening. */
+function watchLevel(stream: MediaStream) {
+  const context = new AudioContext();
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 2048;
+  context.createMediaStreamSource(stream).connect(analyser);
+  const samples = new Float32Array(analyser.fftSize);
+  let peak = 0;
+  const timer = setInterval(() => {
+    analyser.getFloatTimeDomainData(samples);
+    peak = Math.max(peak, Math.sqrt(samples.reduce((sum, value) => sum + value * value, 0) / samples.length));
+  }, 50);
+  return () => {
+    clearInterval(timer);
+    void context.close();
+    return peak;
+  };
+}
 
 const MIC_ERRORS: Record<string, string> = {
   NotAllowedError: "The browser blocked the microphone. Allow it next to the address bar, or type instead.",
@@ -60,6 +81,7 @@ export function useSpeechRecognition(handlers: SpeechHandlers) {
       return;
     }
 
+    const finishLevel = watchLevel(stream);
     const recorder = new MediaRecorder(stream);
     const chunks: Blob[] = [];
     recorder.ondataavailable = (event) => {
@@ -68,6 +90,10 @@ export function useSpeechRecognition(handlers: SpeechHandlers) {
     recorder.onstop = async () => {
       stream.getTracks().forEach((track) => track.stop());
       recorderRef.current = null;
+      if (finishLevel() < MIN_SPEECH_LEVEL) {
+        handlersRef.current.onNothingHeard();
+        return;
+      }
       handlersRef.current.onTranscribing();
       try {
         const text = await transcribeAudio(new Blob(chunks, { type: recorder.mimeType }));

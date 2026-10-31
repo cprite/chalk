@@ -103,10 +103,11 @@ def test_followup_api_rejects_invalid_scene():
 
 
 def test_transcribe_rejects_bad_input_and_returns_text():
-    from app.transcribe import transcribe
+    from app.transcribe import TRANSCRIBE_PROMPT, transcribe
+    assert "English" in TRANSCRIBE_PROMPT and "double the mass" not in TRANSCRIBE_PROMPT
     with pytest.raises(AnalysisError):
         transcribe(b"x", "video/mp4", Fake())
     with pytest.raises(AnalysisError):
         transcribe(b"", "audio/webm", Fake())
-    fake = SimpleNamespace(models=SimpleNamespace(generate_content=lambda **_: SimpleNamespace(text=" hi ")))
+    fake = SimpleNamespace(models=SimpleNamespace(generate_content=lambda **_: SimpleNamespace(text=json.dumps({"text": " hi "}))))
     assert transcribe(b"x", "audio/webm;codecs=opus", fake) == "hi"
