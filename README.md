@@ -4,6 +4,18 @@ Describe a physics experiment out loud and talk to a live 3D simulation of it. E
 
 Halloween at Imperial: Gemini Edition, Track 02. Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Local development
+
+The frontend is a React + TypeScript + Vite app in [`frontend/`](frontend/). Its concise implementation, mock-to-real integration map, and frontend roadmap are in [frontend/README.md](frontend/README.md).
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Run `npm run lint && npm test && npm run build` before opening a pull request. The canonical team architecture and shared scene contract remain in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [contracts/scene_spec.schema.json](contracts/scene_spec.schema.json).
+
 ## План по функциям
 
 Новые функции берём только после того, как весь предыдущий уровень работает сквозным прогоном. После 15:15 только исправление ошибок.
