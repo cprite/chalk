@@ -166,8 +166,8 @@ async def followup_endpoint(request: Request, payload: FollowupPayload):
         return error_response(e.code, e.message, trace_id, status_code=status_code)
     except (ValueError, ValidationError):
         return error_response("invalid_scene", "The current scene is not valid", trace_id)
-    log_trace(trace_id, "followup", get_session_id(request), scene=result["scene"], data={"text": payload.text, "changes": result["changes"]})
-    return {"scene": result["scene"].model_dump(), "changes": result["changes"], "kind": result["kind"], "trace_id": trace_id}
+    log_trace(trace_id, "followup", get_session_id(request), scene=result["scene"], data={"text": payload.text, "changes": result["changes"], "reply": result.get("reply")})
+    return {"scene": result["scene"].model_dump(), "changes": result["changes"], "kind": result["kind"], "reply": result.get("reply"), "trace_id": trace_id}
 
 
 @router.post("/api/v1/predictions")

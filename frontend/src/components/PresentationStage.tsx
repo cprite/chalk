@@ -36,7 +36,7 @@ const voiceLabels: Record<VoiceState, string> = {
   idle: "Ready",
   listening: "Listening",
   thinking: "Thinking",
-  speaking: "Speaking",
+  speaking: "Chalk",
   error: "Voice unavailable",
 };
 

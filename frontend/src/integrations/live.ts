@@ -257,23 +257,6 @@ export function parseVoiceIntent(
 }
 
 /**
- * Text-to-speech feedback using browser SpeechSynthesis.
- */
-export function speakAloud(text: string) {
-  if (typeof window !== "undefined" && "speechSynthesis" in window) {
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
-      window.speechSynthesis.speak(utterance);
-    } catch {
-      // SpeechSynthesis unavailable or audio permissions blocked
-    }
-  }
-}
-
-/**
  * Execute a multimodal voice turn: updates VoiceState, parses intent, and yields state changes.
  */
 export async function executeVoiceTurn(
@@ -289,7 +272,6 @@ export async function executeVoiceTurn(
   const { explanation, updates, shouldPlay } = parseVoiceIntent(prompt, currentScene);
 
   onStateChange("speaking");
-  speakAloud(explanation);
 
   return {
     text: explanation,

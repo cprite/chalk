@@ -18,5 +18,12 @@
 {"text":"на Луне","expect":{"gravity":1.62}},
 {"text":"Увеличь длину до пяти метров и массу до десяти килограммов","expect":{"length":5,"mass":10}},
 {"text":"а если угол 200 градусов","expect_error":"invalid_change"},
-{"text":"Как дела?","expect_error":"unsupported_problem"}
+{"text":"Как дела?","expect":{"mass":1,"angle_deg":30}},
+{"text":"hi","expect":{"mass":1,"angle_deg":30}},
+{"text":"what does friction do here","expect":{"mass":1,"angle_deg":30}},
+{"text":"make the ramp steeper","expect":{"angle_deg":40}},
+{"text":"swap to a sliding block","expect":{"body":"block"}},
+{"text":"moon gravity","expect":{"gravity":1.62}},
+{"text":"make it heavier","expect":{"mass":2}},
+{"text":"tell me about the stock market","expect_error":"unsupported_problem"}
 ]}

@@ -186,7 +186,7 @@ export async function explainResult(scene: SceneSpec, verification: RawVerificat
 }
 
 export async function sendFollowup(scene: SceneSpec, text: string) {
-  const result = await postJson<{ scene: SceneSpec; changes: { field: string; value: unknown }[] }>("/api/v1/scenes/followup", { scene, text });
+  const result = await postJson<{ scene: SceneSpec; changes: { field: string; value: unknown }[]; reply?: string | null }>("/api/v1/scenes/followup", { scene, text });
   if (!isSupportedScene(result.scene)) {
     throw new BackendError("unsupported_problem", `Chalk read a ${(result.scene as { scenario: string }).scenario} problem, but this lab only runs inclined planes and springs for now.`);
   }

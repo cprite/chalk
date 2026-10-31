@@ -6,7 +6,8 @@ import { ResultsPanel } from "./components/ResultsPanel";
 import { SketchPanel } from "./components/SketchPanel";
 import { VoiceAssistant } from "./components/VoiceAssistant";
 import { analyzeSketch, BackendError, createDemoScene, explainResult, recordPrediction, sendFollowup, verifyMeasurement } from "./integrations/backend";
-import { parseVoiceIntent, speakAloud } from "./integrations/live";
+import { parseVoiceIntent } from "./integrations/live";
+import { useSpeechRecognition } from "./integrations/speech";
 import { measureIncline, measureSpring } from "./physics/rapierMeasure";
 import { dismissPresentationOverlay } from "./presentation";
 import { getSketchImageValidationError } from "./sketchFile";
@@ -40,7 +41,7 @@ export default function App() {
   const [inputError, setInputError] = useState<string | null>(null);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState("What happens if I double the mass?");
+  const [transcript, setTranscript] = useState("");
   const [assistantResponse, setAssistantResponse] = useState(
     "Try a prediction first: if we double the mass, do you expect the ball to arrive sooner?",
   );
@@ -162,7 +163,6 @@ export default function App() {
     setAssistantResponse(text);
     setVoiceHistory((history) => [...history, { speaker: "You", text: command }, { speaker: "Chalk", text }]);
     setVoiceState("speaking");
-    speakAloud(text);
   };
 
   const runVerification = async (sceneToVerify = scene) => {
@@ -182,7 +182,6 @@ export default function App() {
       if (turn !== latestTurn.current) return;
       setAssistantResponse(text);
       setVoiceHistory((history) => [...history, { speaker: "Chalk", text }]);
-      speakAloud(text);
     } catch (error) {
       setVerdict({
         status: "not_applicable",
@@ -242,6 +241,10 @@ export default function App() {
     setVoiceState("thinking");
     try {
       const result = await sendFollowup(scene, text);
+      if (result.reply) {
+        say(command, result.reply);
+        return;
+      }
       setScene(result.scene);
       setVerdict(null);
       setIsPlaying(false);
@@ -265,13 +268,27 @@ export default function App() {
     }
   };
 
+  const speech = useSpeechRecognition({
+    onInterim: setTranscript,
+    onFinal: (text) => void handleVoiceCommand(text),
+    onError: (message) => {
+      setVoiceState("error");
+      setVoiceError(message);
+    },
+    onEnd: (heard) => {
+      if (!heard) setVoiceState((current) => (current === "listening" ? "idle" : current));
+    },
+  });
+
   const toggleVoice = () => {
     if (voiceState === "listening") {
-      void handleVoiceCommand(transcript);
+      // The browser delivers whatever it heard as a final result, then ends.
+      speech.stop();
       return;
     }
     setVoiceError(null);
-    setVoiceState("listening");
+    setTranscript("");
+    if (speech.start()) setVoiceState("listening");
   };
 
   const enterPresentationMode = async () => {

@@ -51,6 +51,11 @@ def test_new_scene_uses_analysis():
     assert r["kind"] == "new_scene" and r["scene"].body == "block"
 
 
+def test_reply_keeps_the_scene():
+    r = followup(BALL, "hi", Fake({"kind": "reply", "reply": "Hello!"}))
+    assert r["kind"] == "reply" and r["reply"] == "Hello!" and r["scene"].mass == 1 and r["changes"] == []
+
+
 def test_unsupported_and_empty():
     with pytest.raises(AnalysisError):
         followup(BALL, "tell a joke", Fake({"kind": "unsupported", "reason": "no"}))

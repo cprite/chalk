@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { VoiceState } from "../types";
 
 type VoiceAssistantProps = {
@@ -15,7 +15,7 @@ const stateLabel: Record<VoiceState, string> = {
   idle: "Ready to listen",
   listening: "Listening with mic…",
   thinking: "Thinking…",
-  speaking: "Speaking…",
+  speaking: "Answered",
   error: "Voice unavailable",
 };
 
@@ -39,75 +39,6 @@ export function VoiceAssistant({
   onRetry,
 }: VoiceAssistantProps) {
   const [customText, setCustomText] = useState("");
-  const recognitionRef = useRef<any>(null);
-
-  // Set up Web Speech API recognition when available
-  useEffect(() => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    if (!SpeechRecognition) return;
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
-
-      recognition.onresult = (event: any) => {
-        const currentTranscript = Array.from(event.results)
-          .map((result: any) => result[0].transcript)
-          .join("");
-        if (currentTranscript && onSubmitCommand) {
-          const isFinal = event.results[event.results.length - 1].isFinal;
-          if (isFinal) {
-            onSubmitCommand(currentTranscript);
-          }
-        }
-      };
-
-      recognition.onerror = () => {
-        // Recognition error handled gracefully
-      };
-
-      recognitionRef.current = recognition;
-    } catch {
-      // SpeechRecognition not supported or disabled
-    }
-
-    return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch {
-          // ignore
-        }
-      }
-    };
-  }, [onSubmitCommand]);
-
-  const handleMicClick = () => {
-    if (state === "listening") {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.stop();
-        } catch {
-          // ignore
-        }
-      }
-      onToggleMicrophone();
-    } else {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.start();
-        } catch {
-          // ignore
-        }
-      }
-      onToggleMicrophone();
-    }
-  };
-
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!customText.trim()) return;
@@ -206,7 +137,7 @@ export function VoiceAssistant({
       <button
         className={`mic-button mic-button--${state}`}
         type="button"
-        onClick={handleMicClick}
+        onClick={onToggleMicrophone}
         aria-label={state === "listening" ? "Stop listening" : "Start voice conversation"}
       >
         <span aria-hidden="true">⌁</span>
