@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { measureIncline } from "./rapierMeasure";
-import type { InclineSceneSpec } from "../types";
+import { measureIncline, measureSpring } from "./rapierMeasure";
+import type { InclineSceneSpec, SpringSceneSpec } from "../types";
 
 const base: InclineSceneSpec = { scenario: "incline", body: "ball", mass: 1, angle_deg: 30, length: 2, friction: 1, gravity: 9.81, confidence: 1, assumptions: [] };
 const rolling = (s: InclineSceneSpec) => Math.sqrt((2 * s.length) / ((5 / 7) * s.gravity * Math.sin((s.angle_deg * Math.PI) / 180)));
@@ -30,5 +30,15 @@ describe("Rapier measurement agrees with the formulas within 2%", () => {
 
   it("static block stays put", async () => {
     expect(await measureIncline({ ...base, body: "block", friction: 0.8, angle_deg: 20 })).toEqual({ moved: false, time_to_end_s: null });
+  });
+});
+
+describe("Rapier spring period agrees with T = 2π√(m/k) within 2%", () => {
+  const spring: SpringSceneSpec = { scenario: "spring", mass: 5, spring_constant: 120, spring_count: 2, arrangement: "series", amplitude: 0.35, gravity: 9.81, confidence: 1, assumptions: [] };
+  it.each([[5, 120], [1, 40], [10, 200], [20, 400], [0.5, 80]])("m=%s k=%s", async (mass, k) => {
+    const m = await measureSpring({ ...spring, mass, spring_constant: k });
+    const T = 2 * Math.PI * Math.sqrt(mass / k);
+    expect(m.moved).toBe(true);
+    expect(Math.abs((m.time_to_end_s as number) - T) / T).toBeLessThan(0.02);
   });
 });

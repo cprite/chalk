@@ -312,5 +312,7 @@ export function solveScene(scene: SceneSpec): SimulationSolution {
         formulaEquation: "F = k·q₁q₂/r² r̂ + q(v × B)",
         formulaNote: `Target: ${scene.targetElement}, Alpha energy = ${scene.alphaEnergyMeV} MeV, B = ${scene.magneticFieldTesla} T`,
       };
+    default:
+      throw new Error(`No solver for scenario: ${scene.scenario}`);
   }
 }

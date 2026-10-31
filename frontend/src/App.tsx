@@ -7,10 +7,11 @@ import { SketchPanel } from "./components/SketchPanel";
 import { VoiceAssistant } from "./components/VoiceAssistant";
 import { analyzeSketch, BackendError, createDemoScene, explainResult, recordPrediction, sendFollowup, verifyMeasurement } from "./integrations/backend";
 import { parseVoiceIntent, speakAloud } from "./integrations/live";
-import { measureIncline } from "./physics/rapierMeasure";
+import { measureIncline, measureSpring } from "./physics/rapierMeasure";
 import { dismissPresentationOverlay } from "./presentation";
+import { getSketchImageValidationError } from "./sketchFile";
 import type { PresentationOverlay } from "./presentation";
-import type { InclineSceneSpec, VerificationVerdict, VoiceState } from "./types";
+import type { InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict, VoiceState } from "./types";
 
 const initialScene = createDemoScene();
 
@@ -25,10 +26,14 @@ type VoiceMessage = {
 
 export default function App() {
   const presentationRootRef = useRef<HTMLElement>(null);
-  const [scene, setScene] = useState<InclineSceneSpec>(initialScene);
+  const [scene, setScene] = useState<SceneSpec>(initialScene);
+  const [sceneSource, setSceneSource] = useState<"live" | "demo">("demo");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisSuccess, setAnalysisSuccess] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verdict, setVerdict] = useState<VerificationVerdict | null>(null);
@@ -47,8 +52,8 @@ export default function App() {
   const latestTurn = useRef(0);
 
   useEffect(() => () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-  }, [previewUrl]);
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+  }, []);
 
   useEffect(() => {
     const syncFullscreenState = () => {
@@ -76,32 +81,81 @@ export default function App() {
     return () => window.removeEventListener("keydown", exitWindowedPresentation);
   }, [isFullscreen, isPresentationMode, presentationOverlay]);
 
-  const selectFile = (selected: File) => {
-    setInputError(null);
-    if (!selected.type.startsWith("image/")) {
-      setInputError("Upload a PNG or JPEG image of your physics sketch.");
-      return;
-    }
-    if (selected.size > 5 * 1024 * 1024) {
-      setInputError("Your image is over the 5 MB limit. Choose a smaller file.");
-      return;
-    }
-    setFile(selected);
-    setPreviewUrl(URL.createObjectURL(selected));
-  };
-
-  const analyze = async () => {
-    if (!file) return;
+  const analyzeWithFile = async (targetFile: File) => {
     setIsAnalyzing(true);
     setInputError(null);
+    setAnalysisSuccess(null);
     try {
-      setScene(await analyzeSketch(file));
+      const analysis = await analyzeSketch(targetFile);
+      setScene(analysis.scene);
+      setSceneSource(analysis.source);
       setVerdict(null);
+      if (analysis.scene.scenario === "spring") {
+        setAnalysisSuccess(
+          `Live analysis: ${analysis.scene.spring_count} springs in ${analysis.scene.arrangement} · ${analysis.scene.mass} kg (k_eff = ${analysis.scene.spring_constant.toFixed(0)} N/m)`
+        );
+      } else {
+        const inc = analysis.scene as InclineSceneSpec;
+        setAnalysisSuccess(
+          `Live analysis: ${inc.angle_deg}° slope · ${inc.mass} kg ${inc.body}`
+        );
+      }
     } catch (error) {
       setInputError(error instanceof Error ? error.message : "We could not read that sketch. Please try again.");
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const selectFile = (selected: File) => {
+    setInputError(null);
+    setPreviewError(null);
+    setAnalysisSuccess(null);
+    const validationError = getSketchImageValidationError(selected);
+    if (validationError) {
+      setInputError(validationError);
+      return;
+    }
+
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    const nextPreviewUrl = URL.createObjectURL(selected);
+    previewUrlRef.current = nextPreviewUrl;
+    setFile(selected);
+    setPreviewUrl(nextPreviewUrl);
+    void analyzeWithFile(selected);
+  };
+
+  const handlePreviewError = (failedUrl: string) => {
+    if (previewUrlRef.current !== failedUrl) return;
+    URL.revokeObjectURL(failedUrl);
+    previewUrlRef.current = null;
+    setPreviewUrl(null);
+    setFile(null);
+    setPreviewError("We could not display that image. Choose a different PNG or JPEG sketch.");
+  };
+
+  const selectPreset = async (url: string, name: string) => {
+    try {
+      setInputError(null);
+      setPreviewError(null);
+      setAnalysisSuccess(null);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+      setPreviewUrl(url);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Preset request failed (${response.status}).`);
+      const blob = await response.blob();
+      const presetFile = new File([blob], name, { type: "image/png" });
+      setFile(presetFile);
+      await analyzeWithFile(presetFile);
+    } catch (error) {
+      setInputError(`Could not load preset sketch: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  const analyze = async () => {
+    if (!file) return;
+    await analyzeWithFile(file);
   };
 
   const say = (command: string, text: string) => {
@@ -115,7 +169,12 @@ export default function App() {
     const turn = ++latestTurn.current;
     setIsVerifying(true);
     try {
-      const measured = await measureIncline(sceneToVerify);
+      if (sceneToVerify.scenario !== "incline" && sceneToVerify.scenario !== "spring") {
+        throw new Error("This scenario has no check yet.");
+      }
+      const measured = sceneToVerify.scenario === "spring"
+        ? await measureSpring(sceneToVerify)
+        : await measureIncline(sceneToVerify);
       const result = await verifyMeasurement(sceneToVerify, measured);
       setVerdict(result.verdict);
       const text = await explainResult(sceneToVerify, result.raw, prediction);
@@ -169,9 +228,14 @@ export default function App() {
       return;
     }
 
-    // Spring assemblies are a visual CAD preview. They have no SceneSpec and no verdict yet.
-    if (/spring|hooke|oscillator|пружин/i.test(text)) {
-      say(command, parseVoiceIntent(text, scene).explanation);
+    // Spring assembly layouts are a visual CAD preview, handled by the local parser.
+    if (/springs? in|series|parallel|hooke|oscillator|пружин/i.test(text)) {
+      const local = parseVoiceIntent(text, scene as InclineSceneSpec);
+      if (Object.keys(local.updates).length > 0) {
+        setScene({ ...scene, ...local.updates } as SceneSpec);
+        setVerdict(null);
+      }
+      say(command, local.explanation);
       return;
     }
 
@@ -189,9 +253,9 @@ export default function App() {
         return;
       }
       // Model or backend is down: fall back to the phrases we can read locally.
-      const local = parseVoiceIntent(text, scene);
+      const local = parseVoiceIntent(text, scene as InclineSceneSpec);
       if (Object.keys(local.updates).length > 0) {
-        setScene({ ...scene, ...local.updates });
+        setScene({ ...scene, ...local.updates } as SceneSpec);
         setVerdict(null);
         say(command, local.explanation);
       } else {
@@ -237,21 +301,33 @@ export default function App() {
     setIsPresentationMode(false);
   };
 
-  const changeScene = (field: "angle_deg" | "mass" | "gravity", value: number) => {
-    setScene((current) => ({ ...current, [field]: value }));
+  const changeScene = (field: string, value: any) => {
+    setScene((current) => ({ ...current, [field]: value } as SceneSpec));
     setVerdict(null);
   };
 
   const changeBody = (body: "ball" | "block") => {
-    setScene((current) => ({ ...current, body }));
-    setVerdict(null);
+    if (scene.scenario === "incline") {
+      setScene((current) => ({ ...current, body } as SceneSpec));
+      setVerdict(null);
+    }
   };
 
   const resetScene = () => {
     setScene(initialScene);
+    setSceneSource("demo");
+    setPrediction(null);
     setIsPlaying(false);
     setVerdict(null);
-    setPrediction(null);
+    setAnalysisSuccess(null);
+  };
+
+  const useDemoScene = () => {
+    setScene(createDemoScene());
+    setSceneSource("demo");
+    setVerdict(null);
+    setInputError(null);
+    setAnalysisSuccess(null);
   };
 
   return (
@@ -298,15 +374,26 @@ export default function App() {
           previewUrl={previewUrl}
           fileName={file?.name ?? null}
           isAnalyzing={isAnalyzing}
+          analysisSuccess={analysisSuccess}
           error={inputError}
+          previewError={previewError}
+          sceneSource={sceneSource}
           onSelectFile={selectFile}
+          onPreviewError={handlePreviewError}
           onAnalyze={() => void analyze()}
-          onCameraRequest={() => setInputError("Camera access will connect to Gemini Live. Upload a photo for this demo mode.")}
+          onRetry={() => void analyze()}
+          onUseDemo={useDemoScene}
+          onSelectPreset={selectPreset}
         />
 
         <section className="simulation-panel" aria-labelledby="simulation-title">
           <div className="simulation-heading">
-            <div><p className="eyebrow">02 / EXPERIMENT</p><h2 id="simulation-title">Inclined plane</h2></div>
+            <div>
+              <p className="eyebrow">02 / EXPERIMENT</p>
+              <h2 id="simulation-title">
+                {scene.scenario === "spring" ? "Vertical spring oscillator" : "Inclined plane"}
+              </h2>
+            </div>
             <div className="simulation-actions">
               <span className="live-chip"><i /> {isPlaying ? "Running" : "Ready"}</span>
               <button

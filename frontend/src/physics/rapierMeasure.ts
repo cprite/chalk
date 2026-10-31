@@ -1,9 +1,10 @@
 import RAPIER from "@dimforge/rapier3d-compat";
-import type { InclineSceneSpec } from "../types";
+import type { InclineSceneSpec, SpringSceneSpec } from "../types";
 
 export type Measurement = { moved: boolean; time_to_end_s: number | null };
 
 const DT = 1 / 120;
+const SPRING_DT = 1 / 480;
 // Below about 0.1 m a fast rolling ball loses contact accuracy at this timestep (5% error at 0.05 m).
 const BODY_SIZE = 0.2;
 const STATIC_HORIZON_S = 3;
@@ -57,6 +58,50 @@ export async function measureIncline(scene: InclineSceneSpec): Promise<Measureme
       if (t >= STATIC_HORIZON_S && x < scene.length * 0.01) return { moved: false, time_to_end_s: null };
     }
     return { moved: true, time_to_end_s: null };
+  } finally {
+    world.free();
+  }
+}
+
+/**
+ * Hangs the mass on a Rapier spring joint, releases it from a displaced position and
+ * measures one oscillation period between upward crossings of the rest position.
+ */
+export async function measureSpring(scene: SpringSceneSpec): Promise<Measurement> {
+  await RAPIER.init();
+  const world = new RAPIER.World({ x: 0, y: -scene.gravity, z: 0 });
+  world.timestep = SPRING_DT;
+
+  try {
+    const anchor = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    const rest = -(scene.mass * scene.gravity) / scene.spring_constant - 1;
+    const body = world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(0, rest - scene.amplitude, 0)
+        .enabledTranslations(false, true, false)
+        .lockRotations()
+        .setCanSleep(false),
+    );
+    body.setAdditionalMass(scene.mass, true);
+    world.createImpulseJoint(
+      RAPIER.JointData.spring(1, scene.spring_constant, 0, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }),
+      anchor,
+      body,
+      true,
+    );
+
+    let t = 0;
+    let previous = body.translation().y - rest;
+    const crossings: number[] = [];
+    while (t < MAX_TIME_S && crossings.length < 3) {
+      world.step();
+      t += SPRING_DT;
+      const offset = body.translation().y - rest;
+      if (previous < 0 && offset >= 0) crossings.push(t - SPRING_DT * (offset / (offset - previous)));
+      previous = offset;
+    }
+    if (crossings.length < 2) return { moved: false, time_to_end_s: null };
+    return { moved: true, time_to_end_s: (crossings[crossings.length - 1] - crossings[0]) / (crossings.length - 1) };
   } finally {
     world.free();
   }

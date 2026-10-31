@@ -12,12 +12,12 @@ import {
   type GenerativeSpringAssembly,
 } from "../cad/prebakedModels";
 import { solveIncline } from "../physics/solver";
-import type { InclineSceneSpec } from "../types";
+import type { InclineSceneSpec, SceneSpec, SpringSceneSpec } from "../types";
 
 type CadPreviewMode = "incline" | "projectile" | "cloud_chamber" | "spring";
 
 type PhysicsSceneProps = {
-  scene: InclineSceneSpec;
+  scene: SceneSpec;
   isPlaying: boolean;
   onChangeBody?: (body: "ball" | "block") => void;
 };
@@ -34,7 +34,10 @@ type PhysicsSceneProps = {
  * - Supports 4-Way Pepper's Ghost Hologram Projection Mode (`gl.setViewport` / `gl.setScissor`).
  * - Position over time from the formula. The check itself runs in rapierMeasure.ts.
  */
-export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsSceneProps) {
+export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: PhysicsSceneProps) {
+  // Each CAD branch below reads only the fields of its own scenario.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scene = sceneSpec as any;
   const mountRef = useRef<HTMLDivElement | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -48,9 +51,40 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
 
   // Generative AI / User Spring Setup Controls
   const [springCount, setSpringCount] = useState(2);
-  const [springArrangement, setSpringArrangement] = useState<"parallel" | "series">("parallel");
+  const [springArrangement, setSpringArrangement] = useState<"parallel" | "series">("series");
 
-  const solution = useMemo(() => solveIncline(scene), [scene]);
+  useEffect(() => {
+    if (scene.scenario === "spring") {
+      setCadMode("spring");
+      const springScene = scene as SpringSceneSpec;
+      if (springScene.spring_count) setSpringCount(springScene.spring_count);
+      if (springScene.arrangement) {
+        setSpringArrangement(springScene.arrangement === "parallel" ? "parallel" : "series");
+      }
+    } else if (scene.scenario === "incline") {
+      setCadMode("incline");
+    }
+  }, [scene]);
+
+  const solution = useMemo(
+    () =>
+      solveIncline(
+        scene.scenario === "incline"
+          ? scene
+          : {
+              scenario: "incline",
+              body: "block",
+              mass: 1,
+              angle_deg: 30,
+              length: 4,
+              friction: 0.1,
+              gravity: 9.81,
+              confidence: 1,
+              assumptions: [],
+            }
+      ),
+    [scene]
+  );
 
   const setCameraAngle = (view: "orbit" | "side" | "top" | "slope") => {
     setActivePov(view);
@@ -266,11 +300,17 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
       }
     } else if (cadMode === "spring") {
       // Assemble modular vertical springs (Parallel or Series) driven by Generative CAD config
+      const springScene = scene.scenario === "spring" ? (scene as SpringSceneSpec) : null;
+      const count = springScene?.spring_count ?? springCount;
+      const arrangement = springScene?.arrangement ?? springArrangement;
+      const effectiveK = springScene?.spring_constant ?? (arrangement === "parallel" ? count * 60 : 120 / count);
+      const kPerSpring = arrangement === "parallel" ? effectiveK / Math.max(1, count) : effectiveK * Math.max(1, count);
+
       generativeSpring = buildGenerativeSpringAssembly({
-        count: springCount,
-        arrangement: springArrangement,
+        count,
+        arrangement: arrangement as "series" | "parallel",
         massKg: scene.mass,
-        kPerSpring: 40.0,
+        kPerSpring,
       });
       worldRoot.add(generativeSpring.root);
 
@@ -368,20 +408,21 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
         }
       } else if (cadMode === "spring" && generativeSpring) {
         // Vertical Harmonic Oscillator (Up & Down along Y)
+        const springScene = scene.scenario === "spring" ? (scene as SpringSceneSpec) : null;
         const m = Math.max(0.2, scene.mass);
         const g = scene.gravity;
-        const kEff = generativeSpring.effectiveK;
+        const kEff = springScene?.spring_constant ?? generativeSpring.effectiveK;
         const omega0 = Math.sqrt(kEff / m);
         const period = (2 * Math.PI) / omega0;
 
         // Static equilibrium extension y_eq = m*g / kEff
         const yEq = Math.min(0.65, (m * g) / kEff);
-        const amplitude = 0.28;
+        const amplitude = springScene?.amplitude ?? 0.28;
         const activeT = isPlaying ? elapsedSec : 0;
 
         // Vertical harmonic bounce around equilibrium
         const yOsc = isPlaying
-          ? amplitude * Math.cos(omega0 * activeT) * Math.exp(-0.02 * activeT)
+          ? amplitude * Math.cos(omega0 * activeT) * Math.exp(-0.015 * activeT)
           : 0.18;
 
         setSimTime(isPlaying ? activeT % period : 0);
@@ -805,15 +846,19 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
         {!webglReady ? (
           <>
             <div className="scene-grid" />
-            <span className="scene-label scene-label--top">inclined plane</span>
-            <span className="scene-label scene-label--angle">{scene.angle_deg}°</span>
+            <span className="scene-label scene-label--top">
+              {scene.scenario === "spring" ? "vertical spring oscillator" : "inclined plane"}
+            </span>
+            <span className="scene-label scene-label--angle">
+              {"angle_deg" in scene ? `${scene.angle_deg}°` : "90°"}
+            </span>
             <div className="ramp" style={{ transform: `rotate(${-rampAngle}deg)` }} />
             <div
-              className={`rolling-body rolling-body--${scene.body} ${
+              className={`rolling-body rolling-body--${"body" in scene ? scene.body : "block"} ${
                 isPlaying ? "rolling-body--moving" : ""
               }`}
             >
-              {scene.body === "ball" ? <span className="ball-mark">×</span> : null}
+              {"body" in scene && scene.body === "ball" ? <span className="ball-mark">×</span> : null}
             </div>
             <div className="trajectory" aria-hidden="true" />
           </>
@@ -840,25 +885,19 @@ export function PhysicsScene({ scene, isPlaying, onChangeBody }: PhysicsScenePro
         <div>
           <strong>
             {cadMode === "spring"
-              ? `Vertical Harmonic Oscillator: m·ÿ + k_eff·y = 0 (${springCount} springs in ${springArrangement})`
+              ? `Simple Harmonic Motion: m·ÿ + k_eff·y = 0 (${springCount} springs in ${springArrangement})`
               : solution.formulaEquation}
           </strong>
           <div style={{ color: "#617267", fontSize: "0.61rem" }}>
             {cadMode === "spring"
-              ? `Mass: ${scene.mass} kg · k_eff = ${(
-                  springArrangement === "parallel" ? springCount * 40 : 40 / springCount
-                ).toFixed(1)} N/m (${springArrangement === "parallel" ? "N·k" : "k/N"}) · ω₀ = √(k/m) = ${(
-                  Math.sqrt(
-                    (springArrangement === "parallel" ? springCount * 40 : 40 / springCount) /
-                      Math.max(0.2, scene.mass)
-                  )
-                ).toFixed(2)} rad/s · Period T = ${(
-                  (2 * Math.PI) /
-                  Math.sqrt(
-                    (springArrangement === "parallel" ? springCount * 40 : 40 / springCount) /
-                      Math.max(0.2, scene.mass)
-                  )
-                ).toFixed(2)}s`
+              ? (() => {
+                  const springScene = scene.scenario === "spring" ? (scene as SpringSceneSpec) : null;
+                  const effK = springScene?.spring_constant ?? (springArrangement === "parallel" ? springCount * 40 : 40 / springCount);
+                  const omega = Math.sqrt(effK / Math.max(0.1, scene.mass));
+                  const T = (2 * Math.PI) / omega;
+                  const f = omega / (2 * Math.PI);
+                  return `Mass: ${scene.mass} kg · k_eff = ${effK.toFixed(1)} N/m · Period T = 2π√(m/k) = ${T.toFixed(2)}s · Frequency f = ${f.toFixed(2)} Hz`;
+                })()
               : `Mass: ${scene.mass} kg · t = ${simTime.toFixed(2)}s / ${solution.durationSeconds.toFixed(2)}s · a = ${solution.acceleration.toFixed(2)} m/s²`}
           </div>
         </div>
