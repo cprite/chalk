@@ -55,6 +55,7 @@ No API key, Live token, image, or audio is stored by this frontend. Camera use i
 - Voice: shows `ready → listening → thinking → speaking`; errors remain visible with a retry action.
 - Simulation: reset restores the baseline scene; running it triggers verification.
 - Result: a verdict is never inferred by the voice model — it comes from the verification adapter.
+- Presentation: the Present button keeps the existing scene, controls, voice transcript, and verdict in one projector-friendly layout. It requests browser fullscreen when available and remains usable in a window when it is not; Escape exits either mode.
 
 ## Roadmap
 
@@ -77,7 +78,6 @@ No API key, Live token, image, or audio is stored by this frontend. Camera use i
 
 ### P1: only after the end-to-end path works
 
-- Projector-specific visual pass
 - Unsupported-problem explanation
 - Projectile scenario
 - Experiment report

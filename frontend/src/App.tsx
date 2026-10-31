@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Controls } from "./components/Controls";
 import { PhysicsScene } from "./components/PhysicsScene";
 import { ResultsPanel } from "./components/ResultsPanel";
@@ -11,6 +11,7 @@ import type { InclineSceneSpec, VerificationVerdict, VoiceState } from "./types"
 const initialScene = createDemoScene();
 
 export default function App() {
+  const presentationRootRef = useRef<HTMLElement>(null);
   const [scene, setScene] = useState<InclineSceneSpec>(initialScene);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -22,10 +23,34 @@ export default function App() {
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState("What happens if I make the ramp steeper?");
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
   }, [previewUrl]);
+
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const isRootFullscreen = document.fullscreenElement === presentationRootRef.current;
+      setIsFullscreen(isRootFullscreen);
+      setIsPresentationMode(isRootFullscreen);
+    };
+
+    document.addEventListener("fullscreenchange", syncFullscreenState);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreenState);
+  }, []);
+
+  useEffect(() => {
+    const exitWindowedPresentation = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isPresentationMode && !isFullscreen) {
+        setIsPresentationMode(false);
+      }
+    };
+
+    window.addEventListener("keydown", exitWindowedPresentation);
+    return () => window.removeEventListener("keydown", exitWindowedPresentation);
+  }, [isFullscreen, isPresentationMode]);
 
   const selectFile = (selected: File) => {
     setInputError(null);
@@ -87,19 +112,54 @@ export default function App() {
     setTranscript("What happens if I make the ramp steeper?");
   };
 
+  const enterPresentationMode = async () => {
+    setIsPresentationMode(true);
+    const root = presentationRootRef.current;
+    if (!root?.requestFullscreen) return;
+
+    try {
+      await root.requestFullscreen();
+    } catch {
+      setIsFullscreen(false);
+    }
+  };
+
+  const exitPresentationMode = async () => {
+    if (document.fullscreenElement === presentationRootRef.current && document.exitFullscreen) {
+      try {
+        await document.exitFullscreen();
+      } catch {
+        setIsFullscreen(false);
+        setIsPresentationMode(false);
+      }
+      return;
+    }
+
+    setIsPresentationMode(false);
+  };
+
   return (
-    <main className="app-shell">
+    <main
+      className={`app-shell${isPresentationMode ? " app-shell--presentation" : ""}`}
+      ref={presentationRootRef}
+    >
       <header className="topbar">
         <a className="wordmark" href="#top" aria-label="Chalk home">chalk<span>.</span></a>
         <p className="tagline">Physics you can talk to.</p>
         <div className="mode-badge"><i /> Demo-safe mock mode</div>
       </header>
 
-      <section className="intro" id="top">
-        <p className="eyebrow">INTERACTIVE LAB / 01</p>
-        <h1>Turn a sketch into an experiment.</h1>
-        <p>Show Chalk a physics problem, ask a question out loud, then check what really happens.</p>
-      </section>
+      {!isPresentationMode ? (
+        <section className="intro" id="top">
+          <p className="eyebrow">INTERACTIVE LAB / 01</p>
+          <h1>Turn a sketch into an experiment.</h1>
+          <p>Show Chalk a physics problem, ask a question out loud, then check what really happens.</p>
+        </section>
+      ) : (
+        <p className="presentation-instructions" role="status">
+          {isFullscreen ? "Presentation fullscreen — press Escape to exit." : "Presentation layout — fullscreen is unavailable; press Escape to exit."}
+        </p>
+      )}
 
       <section className="lab-grid" aria-label="Chalk physics lab">
         <SketchPanel
@@ -115,7 +175,17 @@ export default function App() {
         <section className="simulation-panel" aria-labelledby="simulation-title">
           <div className="simulation-heading">
             <div><p className="eyebrow">02 / EXPERIMENT</p><h2 id="simulation-title">Inclined plane</h2></div>
-            <span className="live-chip"><i /> {isPlaying ? "Running" : "Ready"}</span>
+            <div className="simulation-actions">
+              <span className="live-chip"><i /> {isPlaying ? "Running" : "Ready"}</span>
+              <button
+                className="button button--secondary presentation-button"
+                type="button"
+                onClick={() => void (isPresentationMode ? exitPresentationMode() : enterPresentationMode())}
+                aria-pressed={isPresentationMode}
+              >
+                <span aria-hidden="true">{isPresentationMode ? "↙" : "⛶"}</span> {isPresentationMode ? "Exit presentation" : "Present"}
+              </button>
+            </div>
           </div>
           <PhysicsScene scene={scene} isPlaying={isPlaying} />
           <Controls
