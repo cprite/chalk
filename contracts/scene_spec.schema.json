@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "chalk/scene_spec",
+  "title": "SceneSpec",
+  "description": "SI units only. Produced by the reasoning model, validated by the backend, simulated by the frontend, verified by the backend.",
+  "oneOf": [
+    {"$ref": "#/$defs/incline"},
+    {"$ref": "#/$defs/projectile"},
+    {"$ref": "#/$defs/pendulum"},
+    {"$ref": "#/$defs/collision_1d"}
+  ],
+  "$defs": {
+    "common": {
+      "type": "object",
+      "required": ["confidence", "assumptions", "gravity"],
+      "properties": {
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "assumptions": {"type": "array", "items": {"type": "string", "maxLength": 200}, "maxItems": 8},
+        "gravity": {"type": "number", "exclusiveMinimum": 0, "maximum": 30}
+      }
+    },
+    "incline": {
+      "allOf": [{"$ref": "#/$defs/common"}],
+      "required": ["scenario", "body", "mass", "angle_deg", "length", "friction"],
+      "properties": {
+        "scenario": {"const": "incline"},
+        "body": {"enum": ["block", "ball"]},
+        "mass": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000},
+        "angle_deg": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 90},
+        "length": {"type": "number", "exclusiveMinimum": 0, "maximum": 100},
+        "friction": {"type": "number", "minimum": 0, "maximum": 2}
+      }
+    },
+    "projectile": {
+      "allOf": [{"$ref": "#/$defs/common"}],
+      "required": ["scenario", "mass", "speed", "angle_deg", "height"],
+      "properties": {
+        "scenario": {"const": "projectile"},
+        "mass": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000},
+        "speed": {"type": "number", "exclusiveMinimum": 0, "maximum": 200},
+        "angle_deg": {"type": "number", "minimum": 0, "maximum": 90},
+        "height": {"type": "number", "minimum": 0, "maximum": 100}
+      }
+    },
+    "pendulum": {
+      "allOf": [{"$ref": "#/$defs/common"}],
+      "required": ["scenario", "mass", "length", "angle_deg"],
+      "properties": {
+        "scenario": {"const": "pendulum"},
+        "mass": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000},
+        "length": {"type": "number", "exclusiveMinimum": 0, "maximum": 50},
+        "angle_deg": {"type": "number", "exclusiveMinimum": 0, "maximum": 60}
+      }
+    },
+    "collision_1d": {
+      "allOf": [{"$ref": "#/$defs/common"}],
+      "required": ["scenario", "mass_a", "mass_b", "velocity_a", "velocity_b", "restitution"],
+      "properties": {
+        "scenario": {"const": "collision_1d"},
+        "mass_a": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000},
+        "mass_b": {"type": "number", "exclusiveMinimum": 0, "maximum": 1000},
+        "velocity_a": {"type": "number", "minimum": -100, "maximum": 100},
+        "velocity_b": {"type": "number", "minimum": -100, "maximum": 100},
+        "restitution": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    }
+  }
+}
