@@ -16,6 +16,7 @@ import {
   type GenerativeSpringAssembly,
 } from "../cad/prebakedModels";
 import { solveIncline } from "../physics/solver";
+import { MathView } from "./MathView";
 import {
   type Collision1DSceneSpec,
   type GenerativeSceneSpec,
@@ -1117,20 +1118,42 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
         }}
       >
         <div>
-          <strong>
-            {cadMode === "spring" || cadMode === "generative"
-              ? `Live 120Hz Verlet Integrator: ${scene.scenario === "generative" ? (scene as GenerativeSceneSpec).formula || "F_net = m·a" : "m·ÿ + k_eff·y = 0"} (${springCount} springs in ${springArrangement})`
-              : cadMode === "collision_1d"
-              ? "1D Linear Momentum: m_A·v_A + m_B·v_B = m_A·v_A' + m_B·v_B'"
-              : solution.formulaEquation}
+          <strong style={{ fontSize: "0.72rem", letterSpacing: "0.02em" }}>
+            {cadMode === "spring" || cadMode === "generative" ? (
+              <MathView
+                text={`Live 120Hz Verlet Integrator: ${
+                  scene.scenario === "generative"
+                    ? (scene as GenerativeSceneSpec).formula || "F_net = m·a"
+                    : "m·ÿ + k_eff·y = 0"
+                } (${springCount} springs in ${springArrangement})`}
+              />
+            ) : cadMode === "collision_1d" ? (
+              <MathView text="1D Linear Momentum: m_A·v_A + m_B·v_B = m_A·v_A' + m_B·v_B'" />
+            ) : (
+              <MathView text={solution.formulaEquation} />
+            )}
           </strong>
-          <div style={{ color: "#617267", fontSize: "0.61rem" }}>
+          <div style={{ color: "#617267", fontSize: "0.64rem", marginTop: "2px" }}>
             {cadMode === "collision_1d"
               ? (() => {
-                  const col = scene.scenario === "collision_1d" ? (scene as Collision1DSceneSpec) : { mass_a: 2, mass_b: 1, velocity_a: 3, velocity_b: 1, restitution: 1 };
-                  const vA_after = ((col.mass_a - (col.restitution ?? 1) * col.mass_b) * col.velocity_a + (1 + (col.restitution ?? 1)) * col.mass_b * col.velocity_b) / (col.mass_a + col.mass_b);
-                  const vB_after = ((1 + (col.restitution ?? 1)) * col.mass_a * col.velocity_a + (col.mass_b - (col.restitution ?? 1) * col.mass_a) * col.velocity_b) / (col.mass_a + col.mass_b);
-                  return `m_A = ${col.mass_a} kg (v_A = ${col.velocity_a} m/s) · m_B = ${col.mass_b} kg (v_B = ${col.velocity_b} m/s) · Resulting: v_A' = ${vA_after.toFixed(2)} m/s, v_B' = ${vB_after.toFixed(2)} m/s (e = ${col.restitution ?? 1})`;
+                  const col =
+                    scene.scenario === "collision_1d"
+                      ? (scene as Collision1DSceneSpec)
+                      : { mass_a: 2, mass_b: 1, velocity_a: 3, velocity_b: 1, restitution: 1 };
+                  const e = col.restitution ?? 1;
+                  const vA_after =
+                    ((col.mass_a - e * col.mass_b) * col.velocity_a +
+                      (1 + e) * col.mass_b * col.velocity_b) /
+                    (col.mass_a + col.mass_b);
+                  const vB_after =
+                    ((1 + e) * col.mass_a * col.velocity_a +
+                      (col.mass_b - e * col.mass_a) * col.velocity_b) /
+                    (col.mass_a + col.mass_b);
+                  return (
+                    <MathView
+                      text={`m_A = ${col.mass_a} kg (v_A = ${col.velocity_a} m/s) · m_B = ${col.mass_b} kg (v_B = ${col.velocity_b} m/s) · Resulting: v_A' = ${vA_after.toFixed(2)} m/s, v_B' = ${vB_after.toFixed(2)} m/s (e = ${e})`}
+                    />
+                  );
                 })()
               : cadMode === "spring" || cadMode === "generative"
               ? (() => {
@@ -1138,9 +1161,14 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
                   const genScene = scene.scenario === "generative" ? (scene as GenerativeSceneSpec) : null;
                   let effK = 100;
                   if (springScene) {
-                    effK = springScene.spring_constant ?? (springArrangement === "parallel" ? springCount * 40 : 40 / springCount);
+                    effK =
+                      springScene.spring_constant ??
+                      (springArrangement === "parallel"
+                        ? springCount * 40
+                        : 40 / springCount);
                   } else if (genScene) {
-                    const springs = genScene.objects?.filter((o) => o.type === "spring" && (o.k ?? 0) > 0) || [];
+                    const springs =
+                      genScene.objects?.filter((o) => o.type === "spring" && (o.k ?? 0) > 0) || [];
                     if (springs.length > 0) {
                       const sumRecip = springs.reduce((acc, s) => acc + 1 / (s.k || 100), 0);
                       effK = sumRecip > 0 ? 1 / sumRecip : 100;
@@ -1148,9 +1176,17 @@ export function PhysicsScene({ scene: sceneSpec, isPlaying, onChangeBody }: Phys
                   }
                   const omega = Math.sqrt(effK / Math.max(0.1, currentMass));
                   const T = (2 * Math.PI) / omega;
-                  return `Mass: ${currentMass} kg · k_eff = ${effK.toFixed(1)} N/m · Theory T = ${T.toFixed(2)}s · Live v = ${springSimState.current.velY.toFixed(2)} m/s · E_tot = ${springSimState.current.totalEnergy.toFixed(2)} J`;
+                  return (
+                    <MathView
+                      text={`Mass: ${currentMass} kg · k_eff = ${effK.toFixed(1)} N/m · Theory T = ${T.toFixed(2)}s · Live v = ${springSimState.current.velY.toFixed(2)} m/s · E_tot = ${springSimState.current.totalEnergy.toFixed(2)} J`}
+                    />
+                  );
                 })()
-              : `Mass: ${currentMass} kg · t = ${simTime.toFixed(2)}s / ${solution.durationSeconds.toFixed(2)}s · a = ${solution.acceleration.toFixed(2)} m/s²`}
+              : (
+                <MathView
+                  text={`Mass: ${currentMass} kg · t = ${simTime.toFixed(2)}s / ${solution.durationSeconds.toFixed(2)}s · a = ${solution.acceleration.toFixed(2)} m/s²`}
+                />
+              )}
           </div>
         </div>
 

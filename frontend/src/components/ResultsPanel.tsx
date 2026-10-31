@@ -1,4 +1,5 @@
 import type { Collision1DSceneSpec, GenerativeSceneSpec, InclineSceneSpec, SceneSpec, SpringSceneSpec, VerificationVerdict } from "../types";
+import { MathView } from "./MathView";
 
 type ResultsPanelProps = {
   scene: SceneSpec;
@@ -41,35 +42,49 @@ export function ResultsPanel({ scene, verdict, isVerifying }: ResultsPanelProps)
         {isSpring ? (
           <>
             <span>Simple Harmonic Motion</span>
-            <strong>T = 2π · √(m / k_eff)</strong>
+            <strong>
+              <MathView text="T = 2π · √(m / k_eff)" />
+            </strong>
             <small>
-              Hooke's Law: F = -k·Δy (k_eff = {springScene?.spring_constant.toFixed(0)} N/m)
+              <MathView
+                text={`Hooke's Law: F = -k·Δy (k_eff = ${springScene?.spring_constant.toFixed(0)} N/m)`}
+              />
             </small>
           </>
         ) : isGenerative && genScene ? (
           <>
             <span>{genScene.primary_law}</span>
-            <strong>{genScene.formula || "F_net = m·a"}</strong>
+            <strong>
+              <MathView text={genScene.formula || "F_net = m·a"} />
+            </strong>
             <small>{genScene.title}</small>
           </>
         ) : isCollision && collisionScene ? (
           <>
             <span>1D Momentum & Restitution</span>
-            <strong>v_A' = ((m_A − e·m_B)v_A + (1+e)m_B·v_B) / (m_A + m_B)</strong>
+            <strong>
+              <MathView text="v_A' = ((m_A − e·m_B)v_A + (1+e)m_B·v_B) / (m_A + m_B)" />
+            </strong>
             <small>
-              m_A = {collisionScene.mass_a}kg, m_B = {collisionScene.mass_b}kg · v_A = {collisionScene.velocity_a}m/s, v_B = {collisionScene.velocity_b}m/s (e = {collisionScene.restitution})
+              <MathView
+                text={`m_A = ${collisionScene.mass_a} kg, m_B = ${collisionScene.mass_b} kg · v_A = ${collisionScene.velocity_a} m/s, v_B = ${collisionScene.velocity_b} m/s (e = ${collisionScene.restitution})`}
+              />
             </small>
           </>
         ) : inclineScene?.body === "ball" ? (
           <>
             <span>Rolling ball</span>
-            <strong>a = 5/7 · g · sin(θ)</strong>
+            <strong>
+              <MathView text="a = (5/7) · g · sin(θ)" />
+            </strong>
             <small>Ideal rolling, no slip</small>
           </>
         ) : (
           <>
             <span>Sliding block</span>
-            <strong>a = g · (sin(θ) - μ·cos(θ))</strong>
+            <strong>
+              <MathView text="a = g · (sin(θ) - μ·cos(θ))" />
+            </strong>
             <small>Coulomb dry friction</small>
           </>
         )}
