@@ -12,7 +12,7 @@
 - Missing values are filled in and recorded in `assumptions`: g 9.81, mass 1 kg, length 2 m. This is why a drawing without labels works.
 - A ball with no stated friction rolls (friction 1.0). If the slope is described as smooth, friction is 0 and the ball slides.
 - The angle can be estimated from a drawing, but this is always recorded in `assumptions`.
-- A ball with slip uses the sliding formula. Kirill should check the formulas.
+- A ball with slip uses the sliding formula. KirilBoiko should check the formulas.
 
 ## Tested
 
@@ -24,6 +24,6 @@
 
 - `fixtures/drawings/` are synthetic. **Not yet tested on a real hand drawing or a phone photo.**
 - The solver covers only the incline so far: for other scenes, `verify` returns `not_applicable`.
-- No Live tokens (`/sessions`), rate limiting or CI. These are Damir's area. There is only a minimal `main.py` here.
+- No Live tokens (`/sessions`), rate limiting or CI. These are Dart6y's area. There is only a minimal `main.py` here.
 - Responses take up to 12 s: the interface needs an indicator, and Live should fill the pause with speech.
 - Argon rates its own `confidence`, and this has not been calibrated.

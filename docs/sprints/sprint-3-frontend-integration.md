@@ -4,7 +4,7 @@
 
 - **A real measurement.** `physics/rapierMeasure.ts` runs the incline in Rapier and sends the time to `POST /api/v1/verify`. The backend gives the verdict. The `expected * 1.008` placeholder is gone.
 - **One set of physics.** The demo scene uses friction 0.5, and `solver.ts` handles ball slip the same way as the backend. `solver.ts` is used only for animation and the chart.
-- **Dictation and typed input go to `followup` and `explain`.** Kirill's regular expressions remain as a fallback if the model or backend is unavailable. Springs stay a local preview with no verdict.
+- **Dictation and typed input go to `followup` and `explain`.** KirilBoiko's regular expressions remain as a fallback if the model or backend is unavailable. Springs stay a local preview with no verdict.
 - **Prediction.** A phrase starting with "I think…", or the Russian equivalent, is recorded before the run and included in the explanation.
 - **Honest errors.** The demo scene is no longer substituted silently. The screen shows the reason for a refusal or "Could not check". `mismatch` is shown as its own state.
 

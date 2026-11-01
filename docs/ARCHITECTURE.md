@@ -80,7 +80,7 @@ Only code gives the verdict.
 | Pendulum | Period | Numerical solution at large angles |
 | Collision | Velocities after impact | Conservation laws with a coefficient of restitution |
 
-- The starting tolerance is 2%. Kirill refines it for each scenario based on test results.
+- The starting tolerance is 2%. KirilBoiko refines it for each scenario based on test results.
 - `verdict`: `match`, `mismatch` or `not_applicable`. A mismatch is shown, not hidden.
 - Rapier's friction and contact settings must be checked against reference problems. This is the main technical risk.
 
@@ -113,12 +113,12 @@ Main path: backend and frontend locally on the stage laptop. If time allows, fro
 
 | Person | Owns | Outcome |
 |---|---|---|
-| **Nikolay**, backend and data | `analyze`, `patch`, Argon and Live prompts, solver, journal, replay, phrase set | Voice becomes a validated `SceneSpec`, with accuracy measured |
-| **Damir**, backend and security | FastAPI skeleton, `sessions` and Live tokens, file uploads, limits, CORS, errors, CI, deployment | A secure, working API |
-| **Kirill**, frontend, visuals, physics | 3D scenes, Rapier, "formula and simulation" chart, reference problems, formula review | Scenes match the formula within tolerance |
-| **Kristina**, frontend | App skeleton, Live client (microphone, audio, interruption, tools), states, confirmation, prediction, verdict panel | The whole flow works by voice and buttons |
+| **cprite**, backend and data | `analyze`, `patch`, Argon and Live prompts, solver, journal, replay, phrase set | Voice becomes a validated `SceneSpec`, with accuracy measured |
+| **Dart6y**, backend and security | FastAPI skeleton, `sessions` and Live tokens, file uploads, limits, CORS, errors, CI, deployment | A secure, working API |
+| **KirilBoiko**, frontend, visuals, physics | 3D scenes, Rapier, "formula and simulation" chart, reference problems, formula review | Scenes match the formula within tolerance |
+| **kwerui**, frontend | App skeleton, Live client (microphone, audio, interruption, tools), states, confirmation, prediction, verdict panel | The whole flow works by voice and buttons |
 
-Interfaces: Nikolay and Kirill agree on physics, Nikolay and Kristina on API responses, Damir and Kristina on the Live token, Kirill and Kristina on the `<Scene spec onTrajectory />` component.
+Interfaces: cprite and KirilBoiko agree on physics, cprite and kwerui on API responses, Dart6y and kwerui on the Live token, KirilBoiko and kwerui on the `<Scene spec onTrajectory />` component.
 
 ## 10. Gates
 

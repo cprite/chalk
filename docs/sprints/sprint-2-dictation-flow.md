@@ -34,6 +34,6 @@ Errors: `{code, message, trace_id}`. Codes to show the user: `unsupported_proble
 ## Limitations
 
 - Not tested with real `gemini-3.5-transcribe-live` output.
-- The browser needs a token or dictation proxy through `POST /api/v1/sessions`, which is Damir's area.
+- The browser needs a token or dictation proxy through `POST /api/v1/sessions`, which is Dart6y's area.
 - Argon takes several seconds to respond: an indicator is needed.
 - Replay returns only the recorded events. The frontend plays them back on screen.

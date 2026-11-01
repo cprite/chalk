@@ -1,6 +1,6 @@
 # Chalk 3D — Pre-Rendered CAD & Physics Architecture (`docs/CAD_MODELS.md`)
 
-> **Owner:** Kirill (`kirill/physics-cad`) — 3D CAD Assets, Three.js Viewport, Rapier Physics & Analytic Trajectory Verification.
+> **Owner:** KirilBoiko — 3D CAD Assets, Three.js Viewport, Rapier Physics & Analytic Trajectory Verification.
 > **Core Principle:** Teachers and students cannot wait 15–60 seconds for runtime 3D mesh generation or heavy cloud shaders. **All 3D CAD laboratory apparatus, bodies, and rigs are pre-modeled, pre-baked as binary `.glb` assets in `frontend/public/models/`, and paired with synchronous procedural CAD prefabs** so the 3D lab launches in **< 50 ms** and runs at **60 FPS** on any laptop, Chromebook, or projector.
 
 ---
