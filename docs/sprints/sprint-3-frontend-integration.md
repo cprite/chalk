@@ -1,25 +1,25 @@
-# Sprint 3: честная сквозная проверка
+# Sprint 3: an honest end-to-end check
 
-## Что сделано
+## What was done
 
-- **Настоящий замер.** `physics/rapierMeasure.ts` прогоняет плоскость в Rapier и отправляет время в `POST /api/v1/verify`. Вердикт выдаёт backend. Заглушка `expected * 1.008` удалена.
-- **Единая физика.** В демо-сцене трение 0,5, а `solver.ts` учитывает проскальзывание шара так же, как backend. `solver.ts` нужен только для анимации и графика.
-- **Диктовка и ввод текста идут в `followup` и `explain`.** Регулярки Кирилла остались запасным вариантом, если модель или backend недоступны. Пружины остаются локальным просмотром без вердикта.
-- **Прогноз.** Фраза на «Я думаю…» или «I think…» записывается до запуска и попадает в объяснение.
-- **Честные ошибки.** Демо-сцена больше не подставляется молча. На экране причина отказа или «Could not check». `mismatch` показан как отдельное состояние.
+- **A real measurement.** `physics/rapierMeasure.ts` runs the incline in Rapier and sends the time to `POST /api/v1/verify`. The backend gives the verdict. The `expected * 1.008` placeholder is gone.
+- **One set of physics.** The demo scene uses friction 0.5, and `solver.ts` handles ball slip the same way as the backend. `solver.ts` is used only for animation and the chart.
+- **Dictation and typed input go to `followup` and `explain`.** Kirill's regular expressions remain as a fallback if the model or backend is unavailable. Springs stay a local preview with no verdict.
+- **Prediction.** A phrase starting with "I think…", or the Russian equivalent, is recorded before the run and included in the explanation.
+- **Honest errors.** The demo scene is no longer substituted silently. The screen shows the reason for a refusal or "Could not check". `mismatch` is shown as its own state.
 
-Вид интерфейса не менялся, кроме подписи графика и состояний проверки.
+The interface looks the same, apart from the chart label and the check states.
 
-## Проверено
+## Tested
 
-- Rapier и формула: ошибка не больше 1% на углах 15–70° и длине 1–8 м; шар с проскальзыванием, блок, блок на месте, Луна.
-- В браузере с настоящим Argon: запуск, русская и английская фраза, две правки сразу, анекдот, угол 200°, смайлик, отключённый backend.
-- Автотесты frontend и backend, сборка.
+- Rapier against the formula: at most 1% error at 15–70° and 1–8 m; ball with slip, block, block at rest, the Moon.
+- In the browser with real Argon: a run, a Russian and an English phrase, two changes at once, a joke, a 200° angle, a smiley face, and a stopped backend.
+- Automated frontend and backend tests, and the build.
 
-## Что важно знать
+## Good to know
 
-- Радиус шара в симуляции 0,2 м: при 0,05 м Rapier ошибается на 5%.
-- Блок заблокирован от вращения: он моделирует скольжение, а не опрокидывание.
-- Настоящий `mismatch` в браузере не воспроизводился: Rapier сходится с формулой. Состояние покрыто только тестом клиента.
-- Вердикт есть у плоскости и пружины (`measureSpring`, период в Rapier). Снаряд, Cloud Chamber и превью-наборы пружин из CAD-панели не проверяются.
-- Диктовка: Web Speech API, `en-US`, с настоящим микрофоном не проверялась. Русская речь этим режимом не распознаётся.
+- The ball's radius in the simulation is 0.2 m: at 0.05 m, Rapier is off by 5%.
+- The block can't rotate: it models sliding, not tipping over.
+- A real `mismatch` has not been reproduced in the browser, because Rapier agrees with the formula. The state is covered only by a client test.
+- The incline and the spring have a verdict (`measureSpring`, period in Rapier). Projectile, Cloud Chamber and the spring preview sets in the CAD panel are not checked.
+- Dictation: Web Speech API, `en-US`, not tested with a real microphone. This mode does not recognise Russian speech.

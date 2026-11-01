@@ -1,39 +1,39 @@
-# Sprint 2: backend для сценария с диктовкой
+# Sprint 2: backend for the dictation flow
 
-Ассистент не говорит голосом: пользователь диктует, ответы показываются на экране. Поэтому «а если…» и объяснение теперь делает backend.
+The assistant does not speak: the user dictates, and answers are shown on screen. So the backend now handles "what if…" and the explanation.
 
-## Контракт для frontend
+## Frontend contract
 
-Во всех запросах одной сессии передавайте заголовок `X-Session-Id` (буквы, цифры, `_`, `-`).
+Send the `X-Session-Id` header on all requests in a session (letters, digits, `_`, `-`).
 
-| Шаг | Запрос | Ответ |
+| Step | Request | Response |
 |---|---|---|
-| 1. Описание опыта | `POST /api/v1/scenes/analyze`, форма `text` | `{scene, trace_id}` |
-| 2. Прогноз | `POST /api/v1/predictions` `{text}` | `{recorded, trace_id}` |
-| 3. Симуляция на клиенте | Без запроса | |
-| 4. Проверка | `POST /api/v1/verify` `{scene, measured: {moved, time_to_end_s}}` | `{verdict, expected, measured, error_pct, tolerance_pct, formula}` |
-| 5. Объяснение | `POST /api/v1/explain` `{scene, verification, prediction}` | `{text, source}` |
-| 6. «А если…» | `POST /api/v1/scenes/followup` `{scene, text}` | `{scene, changes, kind, trace_id}` |
-| Запись прогона | `POST /api/v1/replay/{имя}` `{session_id}`, затем `GET /api/v1/replay/{имя}` | События сессии по порядку |
+| 1. Describe the experiment | `POST /api/v1/scenes/analyze`, form field `text` | `{scene, trace_id}` |
+| 2. Prediction | `POST /api/v1/predictions` `{text}` | `{recorded, trace_id}` |
+| 3. Simulation on the client | No request | |
+| 4. Check | `POST /api/v1/verify` `{scene, measured: {moved, time_to_end_s}}` | `{verdict, expected, measured, error_pct, tolerance_pct, formula}` |
+| 5. Explanation | `POST /api/v1/explain` `{scene, verification, prediction}` | `{text, source}` |
+| 6. "What if…" | `POST /api/v1/scenes/followup` `{scene, text}` | `{scene, changes, kind, trace_id}` |
+| Record a run | `POST /api/v1/replay/{name}` `{session_id}`, then `GET /api/v1/replay/{name}` | Session events in order |
 
-Ошибки: `{code, message, trace_id}`. Коды для показа пользователю: `unsupported_problem`, `invalid_scene`, `invalid_change`. При `model_unavailable` (503) предложите повторить или включить replay.
+Errors: `{code, message, trace_id}`. Codes to show the user: `unsupported_problem`, `invalid_scene`, `invalid_change`. On `model_unavailable` (503), offer to retry or switch to replay.
 
-## Решения
+## Decisions
 
-- «А если» меняет сцену: Argon возвращает абсолютные значения, код проверяет разрешённые поля и границы. Изменения применяются все или ни одно.
-- Вердикт выдаёт только код. Объяснение его не меняет. Если модель недоступна, вместо объяснения работает шаблон (`source: template`).
-- Прогноз записывается до запуска, так журнал показывает, что его не дописали после.
-- С `REPLAY_MODE=true` модель не вызывается: фиксированная сцена, удвоение массы, шаблонное объяснение.
+- "What if" changes the scene: Argon returns absolute values, and code checks the allowed fields and limits. Either all changes apply or none do.
+- Only code gives the verdict, and the explanation does not change it. If the model is unavailable, a template provides the explanation (`source: template`).
+- The prediction is recorded before the run, so the journal shows it wasn't added afterwards.
+- With `REPLAY_MODE=true` the model is not called: a fixed scene, doubled mass and a template explanation.
 
-## Проверено
+## Tested
 
-- Автотесты `pytest`, без сети.
-- `eval/run_phrases.py` на настоящем `gemini-4-argon`: 19 из 19. Это **напечатанные нами фразы, а не вывод распознавания речи**, поэтому результат нельзя называть точностью диктовки.
-- API из чистого клона по HTTP.
+- Automated `pytest` tests, no network.
+- `eval/run_phrases.py` on real `gemini-4-argon`: 19 out of 19. These are **phrases we typed, not speech recognition output**, so this result can't be called dictation accuracy.
+- The API over HTTP from a clean clone.
 
-## Ограничения
+## Limitations
 
-- С настоящим выводом `gemini-3.5-transcribe-live` не проверено.
-- Для браузера нужен токен или прокси диктовки, это `POST /api/v1/sessions`, зона Дамира.
-- Ответ Argon занимает несколько секунд: нужен индикатор.
-- Replay возвращает только записанные события. Его воспроизведение на экране делает frontend.
+- Not tested with real `gemini-3.5-transcribe-live` output.
+- The browser needs a token or dictation proxy through `POST /api/v1/sessions`, which is Damir's area.
+- Argon takes several seconds to respond: an indicator is needed.
+- Replay returns only the recorded events. The frontend plays them back on screen.

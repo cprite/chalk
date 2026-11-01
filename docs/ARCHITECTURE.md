@@ -1,131 +1,133 @@
-# Chalk: архитектура
+# Chalk: architecture
 
-Статус: 31.10.2026, 13:40. Основной ввод: диктовка (`gemini-3.5-transcribe-live`). Голосового ассистента нет, ответы показываются на экране. Рисунок в P1. Схема и шаги ниже обновляются вместе с клиентом диктовки; действующий контракт backend см. в `docs/sprints/sprint-2-dictation-flow.md`. Изменения контрактов обсуждаем в чате команды до кода.
+Status: 31 October 2026, 13:40. Primary input: dictation (`gemini-3.5-transcribe-live`). There is no voice assistant, and answers are shown on screen. Drawing is in P1. The diagram and steps below are being updated along with the dictation client; for the current backend contract, see `docs/sprints/sprint-2-dictation-flow.md`. Contract changes are discussed in the team chat before any code is written.
 
-## 1. Цель демо
+> **Note:** this is the plan written on the day of the hackathon, kept as a record. The final build differs in places: for example, voice is recorded in the browser and transcribed by the backend. See the [README](../README.md) for how Chalk works now.
 
-Судья описывает опыт голосом: «Шар катится по склону 30 градусов» — и спрашивает: «А если масса вдвое больше?» Ассистент сначала спрашивает прогноз, затем запускает 3D-сцену и показывает, совпала ли симуляция с формулой.
+## 1. Demo goal
 
-Главный пример: шар на наклонной плоскости. В идеальной модели ускорение не зависит от массы: `a = (5/7) g sin(θ)` при качении без проскальзывания. Интуиция многих подсказывает обратное, и в этом весь момент демо.
+A judge describes an experiment by voice: "A ball rolls down a 30 degree slope", then asks: "What if the mass is doubled?" The assistant first asks for a prediction, then runs the 3D scene and shows whether the simulation matched the formula.
 
-**Принцип: модель предлагает, код проверяет.** Модель не пишет исполняемый код и не объявляет результат верным. Она возвращает данные по схеме и объясняет результат.
+Main example: a ball on an inclined plane. In the ideal model, acceleration does not depend on mass: `a = (5/7) g sin(θ)` when rolling without slipping. Many people's intuition says otherwise, and that is the whole point of the demo.
 
-## 2. Компоненты
+**Principle: the model proposes, code checks.** The model does not write executable code and does not declare a result correct. It returns data that follows a schema and explains the result.
+
+## 2. Components
 
 ```mermaid
 flowchart LR
-  U[Микрофон] --> FE[Браузер: React, TypeScript]
-  FE <-->|аудио, вызовы инструментов| LIVE[Gemini Live: gemini-3.8-live]
+  U[Microphone] --> FE[Browser: React, TypeScript]
+  FE <-->|audio, tool calls| LIVE[Gemini Live: gemini-3.8-live]
   FE -->|REST| API[Backend: FastAPI]
-  API -->|короткоживущий токен| FE
-  API -->|текст и схема| ARGON[gemini-4-argon]
-  API --> SOLVER[Аналитический решатель]
-  FE --> SIM[Rapier и Three.js]
-  SIM -->|траектория| API
-  API --> TRACE[Журнал сессии и записи для replay]
+  API -->|short-lived token| FE
+  API -->|text and schema| ARGON[gemini-4-argon]
+  API --> SOLVER[Analytic solver]
+  FE --> SIM[Rapier and Three.js]
+  SIM -->|trajectory| API
+  API --> TRACE[Session journal and replay recordings]
 ```
 
-| Слой | Технология | Почему |
+| Layer | Technology | Why |
 |---|---|---|
-| Интерфейс | React, TypeScript, Vite | Быстрый старт, типы |
-| 3D | Three.js, Rapier (`@dimforge/rapier3d-compat`) | Физика в браузере без нагрузки на сервер |
-| API | Python 3.11, FastAPI, Pydantic | Схемы и OpenAPI из коробки |
-| Рассуждения | `gemini-4-argon`, structured output | Чтение рисунка в строгий JSON |
-| Голос | `gemini-3.8-live`, прямое подключение браузера | Минимальная задержка |
-| Хранение | Файлы JSONL, без базы данных | Аккаунты и история на демо не нужны |
+| Interface | React, TypeScript, Vite | Fast start, types |
+| 3D | Three.js, Rapier (`@dimforge/rapier3d-compat`) | Physics in the browser with no server load |
+| API | Python 3.11, FastAPI, Pydantic | Schemas and OpenAPI out of the box |
+| Reasoning | `gemini-4-argon`, structured output | Reads a drawing into strict JSON |
+| Voice | `gemini-3.8-live`, direct browser connection | Lowest latency |
+| Storage | JSONL files, no database | The demo needs no accounts or history |
 
-## 3. Основной сценарий
+## 3. Main flow
 
-1. Браузер запрашивает `POST /api/v1/sessions` и получает `session_id` и короткоживущий токен Live.
-2. Браузер подключается к Live и передаёт звук с микрофона. Включены сжатие контекста и возобновление сессии.
-3. Live вызывает инструмент `set_scene(description)` с описанием опыта. Браузер отправляет текст в `POST /api/v1/scenes/analyze` (поле `text`). Вызов неблокирующий: ответ Argon идёт 4–12 с, ассистент в это время говорит.
-4. Backend получает от Argon `SceneSpec`, проверяет его по схеме и границам и возвращает браузеру. Live передаёт результат как ответ инструмента.
-5. На экране показываем распознанное: тип задачи, значения, допущения. Пользователь подтверждает голосом или кнопкой.
-6. Ассистент спрашивает прогноз. Прогноз сохраняем до запуска.
-7. Браузер запускает Rapier с фиксированным шагом 1/120 с и отправляет траекторию в `POST /api/v1/verify`.
-8. Backend считает аналитический ответ и возвращает `verdict`.
-9. Результат передаём в Live как ответ инструмента. Ассистент объясняет его, опираясь на числа.
-10. На вопрос «а если…» Live вызывает `update_scene`, изменения проверяются backend, цикл идёт с шага 6.
+1. The browser calls `POST /api/v1/sessions` and receives a `session_id` and a short-lived Live token.
+2. The browser connects to Live and streams microphone audio. Context compression and session resumption are on.
+3. Live calls the `set_scene(description)` tool with a description of the experiment. The browser sends the text to `POST /api/v1/scenes/analyze` (the `text` field). The call is non-blocking: Argon takes 4–12 s to respond, and the assistant keeps talking during that time.
+4. The backend receives a `SceneSpec` from Argon, validates it against the schema and limits, and returns it to the browser. Live passes the result back as the tool response.
+5. The screen shows what was recognised: problem type, values and assumptions. The user confirms by voice or with a button.
+6. The assistant asks for a prediction. The prediction is saved before the run.
+7. The browser runs Rapier with a fixed 1/120 s timestep and sends the trajectory to `POST /api/v1/verify`.
+8. The backend calculates the analytic answer and returns a `verdict`.
+9. The result is passed to Live as a tool response. The assistant explains it using the numbers.
+10. On a "what if…" question, Live calls `update_scene`, the backend validates the changes, and the cycle continues from step 6.
 
-### Состояния интерфейса
+### Interface states
 
-`idle → watching → recognizing → confirming → predicting → simulating → verifying → explaining`, из `explaining` снова в `predicting`. Из любого состояния возможен `error` с понятным следующим действием.
+`idle → watching → recognizing → confirming → predicting → simulating → verifying → explaining`, then from `explaining` back to `predicting`. Any state can move to `error`, with a clear next action.
 
 ## 4. API v1
 
-| Метод | Назначение | Ответ |
+| Method | Purpose | Response |
 |---|---|---|
-| `GET /healthz` | Проверка работы | `{status}` |
-| `POST /api/v1/sessions` | Новая сессия | `{session_id, live_token, expires_at}` |
-| `POST /api/v1/scenes/analyze` | Текст (основной путь) или изображение в `SceneSpec` | `{scene, trace_id}` |
-| `POST /api/v1/scenes/patch` | Изменить параметры | `{scene}` |
-| `POST /api/v1/verify` | Сверить траекторию | `{verdict, expected, measured, error_pct, tolerance_pct}` |
-| `GET /api/v1/replay/{id}` | Запись для запасного режима | Записанная сессия |
+| `GET /healthz` | Health check | `{status}` |
+| `POST /api/v1/sessions` | New session | `{session_id, live_token, expires_at}` |
+| `POST /api/v1/scenes/analyze` | Text (main path) or image to `SceneSpec` | `{scene, trace_id}` |
+| `POST /api/v1/scenes/patch` | Change parameters | `{scene}` |
+| `POST /api/v1/verify` | Check a trajectory | `{verdict, expected, measured, error_pct, tolerance_pct}` |
+| `GET /api/v1/replay/{id}` | Recording for fallback mode | Recorded session |
 
-Формат ошибки единый: `{code, message, trace_id}`. Типы TypeScript генерируются из OpenAPI (`openapi-typescript`), вручную их не дублируем. Источник правды по сцене: `contracts/scene_spec.schema.json`.
+All errors use one format: `{code, message, trace_id}`. TypeScript types are generated from OpenAPI (`openapi-typescript`) and are not duplicated by hand. The source of truth for scenes is `contracts/scene_spec.schema.json`.
 
-Инструменты Live: `set_scene(description)`, `update_scene(field, value)`, `record_prediction(text)`, `run_simulation()`.
+Live tools: `set_scene(description)`, `update_scene(field, value)`, `record_prediction(text)`, `run_simulation()`.
 
-## 5. Проверка
+## 5. Verification
 
-Вердикт выдаёт только код.
+Only code gives the verdict.
 
-| Сценарий | Сравниваем | Формула |
+| Scenario | What is compared | Formula |
 |---|---|---|
-| Плоскость, блок | Время до конца | `a = g(sinθ − μcosθ)`, `t = √(2L/a)`; если `tanθ ≤ μ`, блок не движется |
-| Плоскость, шар | Время до конца | `a = (5/7) g sinθ`, при достаточном трении |
-| Снаряд | Дальность и время полёта | Кинематика без сопротивления воздуха |
-| Маятник | Период | Численное решение при больших углах |
-| Столкновение | Скорости после удара | Законы сохранения с коэффициентом восстановления |
+| Incline, block | Time to the end | `a = g(sinθ − μcosθ)`, `t = √(2L/a)`; if `tanθ ≤ μ`, the block does not move |
+| Incline, ball | Time to the end | `a = (5/7) g sinθ`, with enough friction |
+| Projectile | Range and flight time | Kinematics with no air resistance |
+| Pendulum | Period | Numerical solution at large angles |
+| Collision | Velocities after impact | Conservation laws with a coefficient of restitution |
 
-- Допуск на старте 2%. Кирилл уточняет его по результатам тестов для каждого сценария.
-- `verdict`: `match`, `mismatch` или `not_applicable`. Расхождение показываем, а не скрываем.
-- Настройки трения и контакта в Rapier нужно проверить на эталонных задачах. Это главный технический риск.
+- The starting tolerance is 2%. Kirill refines it for each scenario based on test results.
+- `verdict`: `match`, `mismatch` or `not_applicable`. A mismatch is shown, not hidden.
+- Rapier's friction and contact settings must be checked against reference problems. This is the main technical risk.
 
-## 6. Безопасность
+## 6. Security
 
-- `GEMINI_API_KEY` только на backend. В браузер попадает лишь короткоживущий токен с ограниченным сроком и моделью.
-- Изображения: только JPEG и PNG, до 5 МБ, проверка содержимого, перекодирование для удаления метаданных. На диск не сохраняем без явного согласия.
-- Текст на рисунке считаем данными, а не инструкциями. Ответ модели проходит строгую схему, лишние поля отклоняются, исполняемого кода от модели нет.
-- Текст из голоса такой же недоверенный ввод, как рисунок: до 2000 символов, через схему.
-- `update_scene` меняет только разрешённые поля и в пределах схемы.
-- CORS только для известных адресов, ограничение частоты запросов, HTTPS вне localhost (без него браузер не даст камеру).
-- В логах нет ключей, токенов и изображений. Сканирование секретов в CI и перед открытием репозитория.
+- `GEMINI_API_KEY` stays on the backend only. The browser receives only a short-lived token limited by time and model.
+- Images: JPEG and PNG only, up to 5 MB, with content checks and re-encoding to remove metadata. They are not saved to disk without explicit consent.
+- Text in a drawing is treated as data, not instructions. The model's response goes through a strict schema, extra fields are rejected, and the model produces no executable code.
+- Text from voice is untrusted input, just like a drawing: up to 2000 characters, through the schema.
+- `update_scene` changes only allowed fields, within the schema's limits.
+- CORS only for known origins, rate limiting, and HTTPS outside localhost (browsers will not allow camera access without it).
+- Logs contain no keys, tokens or images. Secrets are scanned in CI and before the repository is made public.
 
-## 7. Качество и работа с кодом
+## 7. Quality and ways of working
 
-- Монорепозиторий: `backend/`, `frontend/`, `contracts/`, `fixtures/`, `docs/`.
-- Короткие ветки `имя/задача`, PR в `main`, один проверяющий. Срочные правки заморозки только с согласия капитана.
-- CI: `ruff`, `pytest`, `tsc`, `vitest`, сборка, `gitleaks`.
-- Тесты: решатель на эталонных значениях, API на контрактах, набор голосовых фраз с ожидаемым `SceneSpec`, один сквозной тест Playwright.
-- Конфигурация только через переменные окружения, логи в JSON с `trace_id`.
-- `REPLAY_MODE=true` запускает записанный прогон без сети.
+- Monorepo: `backend/`, `frontend/`, `contracts/`, `fixtures/`, `docs/`.
+- Short `name/task` branches, PRs into `main`, one reviewer. Urgent changes during the freeze need the captain's agreement.
+- CI: `ruff`, `pytest`, `tsc`, `vitest`, build, `gitleaks`.
+- Tests: solver against reference values, API against contracts, a set of voice phrases with expected `SceneSpec` values, one end-to-end Playwright test.
+- Configuration through environment variables only, JSON logs with `trace_id`.
+- `REPLAY_MODE=true` runs a recorded session with no network.
 
-**Сознательно не делаем:** аккаунты, базу данных, Kubernetes, микросервисы, произвольные сцены.
+**Deliberately not building:** accounts, a database, Kubernetes, microservices, arbitrary scenes.
 
-## 8. Запуск
+## 8. Running it
 
-Основной путь: backend и frontend локально на ноутбуке для сцены, при наличии времени frontend на Vercel и backend на Cloud Run или Render. Интернет с телефона и запись прогона как страховка.
+Main path: backend and frontend locally on the stage laptop. If time allows, frontend on Vercel and backend on Cloud Run or Render. Phone internet and a recorded run as backup.
 
-## 9. Ответственность
+## 9. Ownership
 
-| Человек | Владеет | Результат |
+| Person | Owns | Outcome |
 |---|---|---|
-| **Николай**, backend и данные | `analyze`, `patch`, промпт Argon и Live, решатель, журнал, replay, набор фраз | Голос превращается в проверенный `SceneSpec`, замеряется точность |
-| **Дамир**, backend и безопасность | Каркас FastAPI, `sessions` и токены Live, загрузка файлов, лимиты, CORS, ошибки, CI, деплой | Безопасный работающий API |
-| **Кирилл**, frontend, визуал, физика | 3D-сцены, Rapier, график «формула и симуляция», эталонные задачи, ревью формул | Сцены сходятся с формулой в пределах допуска |
-| **Кристина**, frontend | Каркас приложения, клиент Live (микрофон, звук, прерывание, инструменты), состояния, подтверждение, прогноз, панель вердикта | Весь сценарий управляется голосом и кнопками |
+| **Nikolay**, backend and data | `analyze`, `patch`, Argon and Live prompts, solver, journal, replay, phrase set | Voice becomes a validated `SceneSpec`, with accuracy measured |
+| **Damir**, backend and security | FastAPI skeleton, `sessions` and Live tokens, file uploads, limits, CORS, errors, CI, deployment | A secure, working API |
+| **Kirill**, frontend, visuals, physics | 3D scenes, Rapier, "formula and simulation" chart, reference problems, formula review | Scenes match the formula within tolerance |
+| **Kristina**, frontend | App skeleton, Live client (microphone, audio, interruption, tools), states, confirmation, prediction, verdict panel | The whole flow works by voice and buttons |
 
-Стыки: Николай и Кирилл согласуют физику, Николай и Кристина ответы API, Дамир и Кристина токен Live, Кирилл и Кристина компонент `<Scene spec onTrajectory />`.
+Interfaces: Nikolay and Kirill agree on physics, Nikolay and Kristina on API responses, Damir and Kristina on the Live token, Kirill and Kristina on the `<Scene spec onTrajectory />` component.
 
-## 10. Гейты
+## 10. Gates
 
-| Время | Что должно работать |
+| Time | What must work |
 |---|---|
-| 13:00 | Контракты приняты, заглушка API, сцена «шар на плоскости» с ручными данными, голос Live в браузере |
-| 14:00 | Уродливая сквозная версия: голос, JSON, симуляция, вердикт. Запись чернового прогона |
-| 14:45 | Голосовой цикл с прогнозом и «а если», минимум шар и блок на плоскости |
-| 15:15 | Заморозка функций |
-| 15:45 | Сдача, репозиторий открыт, проверен без входа в аккаунт |
+| 13:00 | Contracts agreed, API stub, "ball on incline" scene with manual data, Live voice in the browser |
+| 14:00 | Rough end-to-end version: voice, JSON, simulation, verdict. A draft run recorded |
+| 14:45 | Voice loop with prediction and "what if", at minimum a ball and a block on an incline |
+| 15:15 | Feature freeze |
+| 15:45 | Submission, repository public and checked without signing in |
 
-Обед по очереди, без общей остановки. Если к 14:45 голос нестабилен, управление идёт кнопками, а голос остаётся только для объяснения. Первыми вырезаем маятник и столкновение.
+Lunch in turns, with no full stop. If voice is unstable by 14:45, control moves to buttons and voice is used only for the explanation. Pendulum and collision are the first to be cut.

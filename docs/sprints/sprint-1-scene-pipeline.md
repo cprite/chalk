@@ -1,29 +1,29 @@
-# Sprint 1: от рисунка к проверенной сцене
+# Sprint 1: from a drawing to a validated scene
 
-## Что сделано
+## What was done
 
-- `POST /api/v1/scenes/analyze`: фото или текст превращаются в проверенный `SceneSpec`. Argon отдаёт JSON, код строго его проверяет.
-- `POST /api/v1/verify`: аналитический ответ для плоскости (блок и шар) и вердикт `match` или `mismatch`, допуск 2%.
-- `POST /api/v1/scenes/patch`: изменение разрешённых полей с повторной проверкой.
-- Журнал без изображений и ключей, режим `REPLAY_MODE`, `GET /api/v1/replay/{id}`.
+- `POST /api/v1/scenes/analyze`: a photo or text becomes a validated `SceneSpec`. Argon returns JSON, and code checks it strictly.
+- `POST /api/v1/verify`: the analytic answer for an incline (block and ball) and a `match` or `mismatch` verdict, with a 2% tolerance.
+- `POST /api/v1/scenes/patch`: changes allowed fields and validates again.
+- A journal with no images or keys, `REPLAY_MODE`, and `GET /api/v1/replay/{id}`.
 
-## Решения
+## Decisions
 
-- Незаданные значения подставляются и записываются в `assumptions`: g 9,81, масса 1 кг, длина 2 м. Рисунок без подписей поэтому работает.
-- Шар без указанного трения катится (friction 1.0). Если склон назван гладким, friction 0, и шар скользит.
-- Угол можно оценить по рисунку, но об этом обязательно пишется в `assumptions`.
-- Режим шара с проскальзыванием считается по формуле скольжения. Формулы должен проверить Кирилл.
+- Missing values are filled in and recorded in `assumptions`: g 9.81, mass 1 kg, length 2 m. This is why a drawing without labels works.
+- A ball with no stated friction rolls (friction 1.0). If the slope is described as smooth, friction is 0 and the ball slides.
+- The angle can be estimated from a drawing, but this is always recorded in `assumptions`.
+- A ball with slip uses the sliding formula. Kirill should check the formulas.
 
-## Проверено
+## Tested
 
-- Автотесты: `pytest`, без сети.
-- Настоящий `gemini-4-argon`: 3 рисунка плоскости, рисунок с текстом-инъекцией, смайлик, 4 текстовых запроса. Время ответа 4–12 с.
-- Запуск сервера и проверка API с `curl` из чистого клона.
+- Automated tests: `pytest`, no network.
+- Real `gemini-4-argon`: 3 incline drawings, a drawing with injected text, a smiley face, 4 text requests. Response time 4–12 s.
+- Started the server and checked the API with `curl` from a clean clone.
 
-## Ограничения
+## Limitations
 
-- `fixtures/drawings/` синтетические. **На настоящем рисунке от руки и фото с телефона ещё не проверено.**
-- Solver пока только для плоскости: для остальных сцен `verify` вернёт `not_applicable`.
-- Нет токенов Live (`/sessions`), ограничения частоты, CI. Это зона Дамира. Здесь только минимальный `main.py`.
-- Время ответа до 12 с: в интерфейсе нужен индикатор, а Live должен заполнять паузу речью.
-- Argon сам оценивает `confidence`, калибровка не проверялась.
+- `fixtures/drawings/` are synthetic. **Not yet tested on a real hand drawing or a phone photo.**
+- The solver covers only the incline so far: for other scenes, `verify` returns `not_applicable`.
+- No Live tokens (`/sessions`), rate limiting or CI. These are Damir's area. There is only a minimal `main.py` here.
+- Responses take up to 12 s: the interface needs an indicator, and Live should fill the pause with speech.
+- Argon rates its own `confidence`, and this has not been calibrated.

@@ -1,45 +1,45 @@
-# Chalk: приоритеты
+# Chalk: priorities
 
-Правило: новые функции берём только после того, как весь уровень выше работает сквозным прогоном. После 15:15 только исправление ошибок.
+Rule: new features are taken on only after the whole level above works end to end. After 15:15, only bug fixes.
 
-## P0. Обязательно сегодня
+## P0. Must have today
 
-| Функция | Владелец | Готово, когда |
+| Feature | Owner | Done when |
 |---|---|---|
-| Голосовое описание превращается в `SceneSpec` | Николай | Live вызывает `set_scene`, сцена проверяется, неверная схема отклоняется |
-| Экран подтверждения распознанного | Кристина | Видны тип, значения и допущения, можно подтвердить или исправить голосом |
-| 3D-симуляция плоскости: шар и блок | Кирилл | Движение соответствует параметрам сцены |
-| Аналитическая проверка и вердикт | Николай, ревью Кирилла | На экране формула, симуляция, расхождение и вердикт |
-| Голосовой разговор в браузере | Кристина | Можно задать вопрос и перебить ассистента, сессия не обрывается за время демо |
-| Сценарий прогноза и «а если масса вдвое больше» | Кристина, Николай | Прогноз до запуска, изменение параметра, новый запуск и объяснение по числам |
-| Защита ключа и входных данных | Дамир | Ключа нет в браузере, токен короткоживущий, размер и тип файла проверяются |
-| Запись прогона и режим replay | Николай, Кристина | Демо проходит без сети |
-| Сдача | Николай | README на английском, открытый репозиторий, запуск из чистого клона, видео, питч |
+| Voice description becomes a `SceneSpec` | Nikolay | Live calls `set_scene`, the scene is validated, an invalid schema is rejected |
+| Screen confirming what was recognised | Kristina | Type, values and assumptions are visible, and can be confirmed or corrected by voice |
+| 3D incline simulation: ball and block | Kirill | Motion matches the scene parameters |
+| Analytic check and verdict | Nikolay, reviewed by Kirill | Formula, simulation, difference and verdict are on screen |
+| Voice conversation in the browser | Kristina | You can ask a question and interrupt the assistant, and the session stays connected for the whole demo |
+| Prediction flow and "what if the mass is doubled" | Kristina, Nikolay | Prediction before the run, parameter change, new run and an explanation using the numbers |
+| Key and input protection | Damir | No key in the browser, short-lived token, file size and type checked |
+| Run recording and replay mode | Nikolay, Kristina | The demo works with no network |
+| Submission | Nikolay | README in English, public repository, runs from a clean clone, video, pitch |
 
-## P1. Если успеем, по порядку
+## P1. If time allows, in order
 
-1. Рисунок: камера и анализ фото (backend уже готов, нужен интерфейс). Кристина.
-2. Сценарий снаряда: добавляет разнообразие в демо. Кирилл, Николай.
-3. Деплой frontend и backend по HTTPS. Дамир.
-4. Интерфейс для проектора и визуальная полировка. Кристина, Кирилл.
-5. Отчёт об эксперименте: условие, прогноз, результат, вердикт. Николай, Кристина.
-6. Понятный отказ для неподдерживаемых задач. Николай, Кристина.
-7. Маятник и столкновение. Кирилл, Николай.
+1. Drawing: camera and photo analysis (the backend is ready, the interface is needed). Kristina.
+2. Projectile scenario: adds variety to the demo. Kirill, Nikolay.
+3. Frontend and backend deployment over HTTPS. Damir.
+4. Projector-friendly interface and visual polish. Kristina, Kirill.
+5. Experiment report: problem, prediction, result, verdict. Nikolay, Kristina.
+6. Clear refusal for unsupported problems. Nikolay, Kristina.
+7. Pendulum and collision. Kirill, Nikolay.
 
-Понятный отказ стоит поднять выше, если на тестах модель выдаёт сцены для неподдерживаемых задач.
+Move the clear refusal higher if tests show the model producing scenes for unsupported problems.
 
-## P2. Развитие продукта, сегодня только на слайде
+## P2. Product roadmap, on a slide only today
 
-- Workspace класса, задания и работы учеников
-- Режим зачёта: подсказки выключены, журнал работы, устная защита, оценку ставит учитель
-- Аккаунты, роли, хранение и защита данных учеников
-- Новые разделы физики: электричество, оптика, волны, термодинамика
-- Сравнение симуляции с данными реального опыта
-- Привязка к учебной программе
-- Многоязычные занятия
-- Интеграция с LMS
-- Совместная работа нескольких учеников в реальном времени
+- Class workspace, assignments and student work
+- Assessment mode: hints off, work log, oral defence, the teacher gives the grade
+- Accounts, roles, and storing and protecting student data
+- More physics topics: electricity, optics, waves, thermodynamics
+- Comparing simulations with data from real experiments
+- Mapping to the curriculum
+- Multilingual lessons
+- LMS integration
+- Real-time collaboration between students
 
-## Сегодня не делаем
+## Not building today
 
-Аккаунты, базу данных, произвольные сцены, генерацию кода моделью, видео и музыку на сцене. Чтобы не было спорного обещания, не говорим «любые эксперименты» и «заменяет лабораторию».
+Accounts, a database, arbitrary scenes, model-generated code, video and music on stage. To avoid a claim we can't back up, we don't say "any experiment" or "replaces the lab".
