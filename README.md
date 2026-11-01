@@ -102,4 +102,4 @@ See also [CAD_MODELS.md](CAD_MODELS.md) and the [architecture notes](docs/ARCHIT
 
 ## License
 
-All rights reserved. You can read and evaluate the code, but commercial use and deployment need written permission from the Chalk team. See [LICENSE](LICENSE).
+[Business Source License 1.1](LICENSE). Non-production use is free, and production use needs a commercial license from the Chalk team. On 2030-11-01 this version becomes available under GPL v2.0 or later.
