@@ -1,0 +1,36 @@
+Chalk
+Copyright (c) 2026 Nikolay Miroshnichenko, Kiril Boiko, Damir and Kristina ("the Chalk team").
+All rights reserved.
+
+This repository is public so that people can read and evaluate the work. It is
+not open source.
+
+Permitted use
+
+You may view this software, and download and run unmodified copies of it, only
+for your own personal study or to evaluate it. You may also use the viewing and
+forking features that GitHub's Terms of Service require for public repositories.
+
+Reserved rights
+
+All other rights are reserved. Without prior written permission from the Chalk
+team, you may not:
+
+- use this software, or any part of it, for any commercial purpose, including in
+  a product, a paid service, or paid teaching or training;
+- deploy it for use by others, including by any school, university or other
+  organisation;
+- distribute, publish or sublicense it, or any part of it, other than as GitHub's
+  Terms of Service require;
+- modify it or create works based on it, other than for your own personal study.
+
+Third-party components
+
+Third-party software used by this project remains under its own license. This
+license does not change those terms.
+
+No warranty
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. TO THE EXTENT THE LAW ALLOWS, THE CHALK TEAM IS NOT LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.

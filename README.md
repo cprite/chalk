@@ -99,3 +99,7 @@ The API key stays on the backend. Images are re-encoded to remove metadata, and 
 - Built in five hours as a prototype. Accounts and classroom workspaces are the next step, not part of this version.
 
 See also [CAD_MODELS.md](CAD_MODELS.md) and the [architecture notes](docs/ARCHITECTURE.md).
+
+## License
+
+All rights reserved. You can read and evaluate the code, but commercial use and deployment need written permission from the Chalk team. See [LICENSE](LICENSE).
